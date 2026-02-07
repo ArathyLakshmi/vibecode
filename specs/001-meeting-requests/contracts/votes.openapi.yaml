@@ -1,0 +1,575 @@
+openapi: 3.0.0
+info:
+  title: Board Meeting Request & Voting System - Votes API
+  description: Vote creation, voting, and results endpoints
+  version: 1.0.0
+  contact:
+    name: UBS Board Solutions
+    email: board-solutions@ubs.example.com
+
+servers:
+  - url: https://api.ubs.example.com/v1
+    description: Production API
+  - url: https://api-staging.ubs.example.com/v1
+    description: Staging API
+  - url: http://localhost:5000/v1
+    description: Local development
+
+tags:
+  - name: Votes
+    description: Create and manage votes for meetings
+  - name: Voting
+    description: Cast votes and view results
+
+paths:
+  /meetings/{meetingId}/votes:
+    post:
+      summary: Create vote for meeting (SEC admin only)
+      operationId: createVote
+      tags:
+        - Votes
+      security:
+        - azureAd: [SecAdmin]
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVoteRequest'
+      responses:
+        '201':
+          description: Vote created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid input (deadline in past, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or not SEC admin
+        '404':
+          description: Meeting not found
+        '422':
+          description: Business logic violation
+
+    get:
+      summary: List votes for meeting
+      operationId: listVotes
+      tags:
+        - Votes
+      security:
+        - azureAd: []
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by vote status
+          schema:
+            type: string
+            enum: [Draft, VotingOpen, Closed]
+      responses:
+        '200':
+          description: List of votes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  votes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Meeting not found
+
+  /meetings/{meetingId}/votes/{voteId}:
+    get:
+      summary: Get vote details
+      operationId: getVote
+      tags:
+        - Votes
+      security:
+        - azureAd: []
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vote details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteDetailResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Vote not found
+
+    patch:
+      summary: Update vote (SEC admin only, only in Draft status)
+      operationId: updateVote
+      tags:
+        - Votes
+      security:
+        - azureAd: [SecAdmin]
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVoteRequest'
+      responses:
+        '200':
+          description: Vote updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Cannot update (not in Draft status)
+        '401':
+          description: Unauthorized or not SEC admin
+        '404':
+          description: Vote not found
+
+  /meetings/{meetingId}/votes/{voteId}/publish:
+    post:
+      summary: Publish vote (move from Draft to VotingOpen, send notifications)
+      operationId: publishVote
+      tags:
+        - Votes
+      security:
+        - azureAd: [SecAdmin]
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishVoteRequest'
+      responses:
+        '200':
+          description: Vote published, notifications sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Cannot publish (not in Draft or no eligible voters)
+        '401':
+          description: Unauthorized or not SEC admin
+        '404':
+          description: Vote not found
+        '422':
+          description: Validation error (e.g., deadline in past)
+
+  /meetings/{meetingId}/votes/{voteId}/results:
+    get:
+      summary: Get vote results (available after voting closes)
+      operationId: getVoteResults
+      tags:
+        - Voting
+      security:
+        - azureAd: []
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vote results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResultsResponse'
+        '400':
+          description: Vote not closed yet
+        '401':
+          description: Unauthorized
+        '404':
+          description: Vote not found
+
+  /votes/{voteId}/submit:
+    post:
+      summary: Cast a vote (authenticated user or external voter via magic link)
+      operationId: submitVote
+      tags:
+        - Voting
+      security:
+        - azureAd: []
+        - magicLink: []
+      parameters:
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitVoteRequest'
+      responses:
+        '201':
+          description: Vote submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteSubmissionResponse'
+        '400':
+          description: Voting not open or deadline passed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or invalid token
+        '403':
+          description: User not eligible to vote in this vote
+        '409':
+          description: User has already voted
+        '404':
+          description: Vote not found
+
+  /votes/{voteId}/status:
+    get:
+      summary: Check voting status for current user
+      operationId: getVotingStatus
+      tags:
+        - Voting
+      security:
+        - azureAd: []
+        - magicLink: []
+      parameters:
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current user's voting status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VotingStatusResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Vote not found
+
+components:
+  securitySchemes:
+    azureAd:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize
+          scopes:
+            SecAdmin: SEC admin role for vote creation/publishing
+
+    magicLink:
+      type: apiKey
+      in: header
+      name: X-Voting-Token
+      description: JWT token from email magic link (for external voters)
+
+  schemas:
+    CreateVoteRequest:
+      type: object
+      required:
+        - title
+        - voteDeadline
+      properties:
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          description: Vote title (e.g., "Approve Q1 Budget")
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional detailed description
+        voteDeadline:
+          type: string
+          format: date-time
+          description: When voting closes (ISO 8601 UTC datetime)
+      example:
+        title: Approve Q1 2026 Budget
+        description: Vote on approval of the proposed Q1 2026 budget as presented by Finance
+        voteDeadline: "2026-02-14T17:00:00Z"
+
+    UpdateVoteRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 500
+        description:
+          type: string
+          maxLength: 2000
+        voteDeadline:
+          type: string
+          format: date-time
+
+    PublishVoteRequest:
+      type: object
+      required:
+        - eligibleVoterIds
+      properties:
+        eligibleVoterIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of user IDs who can vote (must have at least 1)
+          minItems: 1
+
+    VoteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        meetingId:
+          type: string
+          format: uuid
+        createdBy:
+          $ref: '#/components/schemas/UserInfo'
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        voteDeadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [Draft, VotingOpen, Closed]
+        createdAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    VoteDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/VoteResponse'
+        - type: object
+          properties:
+            eligibleVoters:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserInfo'
+            currentUserVotingStatus:
+              type: string
+              enum: [NotVoted, Voted, Ineligible, VotingClosed]
+              description: Current user's voting status for this vote
+            timeRemaining:
+              type: integer
+              description: Seconds until deadline (null if closed or past deadline)
+              nullable: true
+
+    VoteResultsResponse:
+      type: object
+      properties:
+        voteId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [VotingOpen, Closed]
+        voteDeadline:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+        results:
+          type: object
+          properties:
+            yesCount:
+              type: integer
+              description: Number of Yes votes
+            noCount:
+              type: integer
+              description: Number of No votes
+            total:
+              type: integer
+              description: Total votes cast
+            yesPercentage:
+              type: number
+              format: double
+              description: Percentage of Yes votes (0-100)
+            noPercentage:
+              type: number
+              format: double
+              description: Percentage of No votes (0-100)
+
+    SubmitVoteRequest:
+      type: object
+      required:
+        - choice
+      properties:
+        choice:
+          type: string
+          enum: [Yes, No]
+          description: Vote choice
+
+    VoteSubmissionResponse:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+        voteId:
+          type: string
+          format: uuid
+        choice:
+          type: string
+          enum: [Yes, No]
+        submittedAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+          example: "Your vote has been recorded. Thank you for voting!"
+
+    VotingStatusResponse:
+      type: object
+      properties:
+        voteId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: [NotVoted, Voted, Ineligible, VotingClosed, Cancelled]
+        votingStatus:
+          type: string
+          enum: [Draft, VotingOpen, Closed]
+        voteDeadline:
+          type: string
+          format: date-time
+        timeRemaining:
+          type: integer
+          description: Seconds until deadline (null if closed)
+          nullable: true
+        yourVote:
+          type: string
+          enum: [Yes, No]
+          nullable: true
+          description: Current user's vote choice (null if not voted)
+        canVote:
+          type: boolean
+          description: Whether current user can still vote
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [RegularUser, SecAdmin, ExternalMember]
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+
