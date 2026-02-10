@@ -1,5 +1,6 @@
 import React from 'react'
 import MeetingRequestForm from './components/MeetingRequestForm'
+import MeetingRequestsList from './components/MeetingRequestsList'
 
 export default function App() {
   const [open, setOpen] = React.useState(false)
@@ -13,7 +14,10 @@ export default function App() {
           <button onClick={() => setOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create Meeting Request</button>
         </div>
 
-        {/* Page content could go here */}
+        {/* Meeting requests list */}
+        <div className="mb-6">
+          <MeetingRequestsList />
+        </div>
 
         {/* Drawer overlay */}
         <div className={`fixed inset-0 bg-black bg-opacity-40 transition-opacity ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setOpen(false)} />
