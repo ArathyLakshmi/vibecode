@@ -1,10 +1,13 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 #nullable disable
 
 namespace VibeCode.Server.Migrations
 {
+    [DbContext(typeof(MeetingRequestsDbContext))]
+    [Migration("20260210195500_AddReferenceNumber")]
     public partial class AddReferenceNumber : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
