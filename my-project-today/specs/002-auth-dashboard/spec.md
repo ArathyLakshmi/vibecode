@@ -38,18 +38,27 @@ An unauthenticated visitor attempts to reach the dashboard; the system prevents 
 
 ---
 
-### User Story 3 - Role-Restricted Dashboard (Priority: P2) [NEEDS CLARIFICATION: role vs any authenticated user]
+### User Story 3 - Role-Restricted Dashboard (Priority: P2)
 
-If the dashboard should be limited to users with specific roles (e.g., `requestor`, `secadmin`), the system enforces role checks.
+The dashboard surface is composed of multiple widgets; access to specific widgets is controlled by role. This includes but is not limited to: create/submit widgets, approval workflows, and admin/executive panels. The SPA and API enforce both authentication and per-widget authorization.
 
-**Why this priority**: Role restriction reduces surface area for sensitive actions; apply only if required by product rules.
+**Why this priority**: Granular role controls are required when different user groups (e.g., requestors, reviewers, admins) must see different dashboard capabilities.
 
-**Independent Test**: Sign in as a user without the role and confirm access is denied (HTTP 403). Sign in as a user with the role and confirm access granted.
+**Default role→widget mapping (assumption — editable)**:
+
+- `secadmin`: full access to all dashboard widgets and admin controls.
+- `requestor`: access to create/submit widgets and personal submissions list.
+- `EdOffice`: access to education-office review widgets and related approvals.
+- `ManagementOffice`: access to management review widgets and approval queues.
+
+**Independent Test**: Sign in as users in each role and verify visible widgets match the mapping; verify users without the role cannot access protected widget endpoints (HTTP 403).
 
 **Acceptance Scenarios**:
 
-1. **Given** an authenticated user without required role, **When** they request `/dashboard`, **Then** server returns HTTP 403 and SPA shows an access-denied message.
-2. **Given** an authenticated user with required role, **When** they request `/dashboard`, **Then** server returns HTTP 200 and dashboard content is visible.
+1. **Given** an authenticated user assigned the `requestor` role, **When** they visit `/dashboard`, **Then** they see create/submit widgets and cannot see admin-only widgets.
+2. **Given** an authenticated user assigned `EdOffice`, **When** they request review widgets or call review endpoints, **Then** server returns HTTP 200 and UI renders review controls; users without that role receive HTTP 403 for those endpoints.
+3. **Given** an authenticated user assigned `secadmin`, **When** they visit `/dashboard`, **Then** they see all widgets and admin controls.
+
 
 ---
 
