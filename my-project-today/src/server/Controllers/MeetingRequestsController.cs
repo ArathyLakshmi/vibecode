@@ -16,13 +16,13 @@ public class MeetingRequestsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });
-        if (string.IsNullOrWhiteSpace(body.MeetingTitle) || string.IsNullOrWhiteSpace(body.MeetingDate))
+        if (string.IsNullOrWhiteSpace(body.MeetingTitle) || !body.MeetingDate.HasValue)
             return BadRequest(new { error = "Missing required fields" });
 
         // duplicate detection: title + date + category
         var existing = await _db.MeetingRequests.FirstOrDefaultAsync(x => !x.IsDraft
             && x.Title.ToLower() == (body.MeetingTitle ?? string.Empty).ToLower()
-            && x.MeetingDate == (body.MeetingDate ?? string.Empty)
+            && x.MeetingDate.HasValue && x.MeetingDate.Value.Date == body.MeetingDate.Value.Date
             && x.Category.ToLower() == (body.MeetingCategory ?? string.Empty).ToLower());
         if (existing != null)
         {
@@ -32,8 +32,8 @@ public class MeetingRequestsController : ControllerBase
         var entity = new MeetingRequest
         {
             Title = body.MeetingTitle ?? string.Empty,
-            MeetingDate = body.MeetingDate ?? string.Empty,
-            AlternateDate = body.AlternateDate ?? string.Empty,
+            MeetingDate = body.MeetingDate,
+            AlternateDate = body.AlternateDate,
             Category = body.MeetingCategory ?? string.Empty,
             Subcategory = body.MeetingSubcategory ?? string.Empty,
             Description = body.MeetingDescription ?? string.Empty,
@@ -54,8 +54,8 @@ public class MeetingRequestsController : ControllerBase
         var entity = new MeetingRequest
         {
             Title = body.MeetingTitle ?? string.Empty,
-            MeetingDate = body.MeetingDate ?? string.Empty,
-            AlternateDate = body.AlternateDate ?? string.Empty,
+            MeetingDate = body.MeetingDate,
+            AlternateDate = body.AlternateDate,
             Category = body.MeetingCategory ?? string.Empty,
             Subcategory = body.MeetingSubcategory ?? string.Empty,
             Description = body.MeetingDescription ?? string.Empty,
@@ -83,8 +83,8 @@ public class MeetingRequestsController : ControllerBase
         var q = _db.MeetingRequests.AsQueryable();
         if (!string.IsNullOrWhiteSpace(classification)) q = q.Where(x => x.Classification.ToLower() == classification.ToLower());
         if (!string.IsNullOrWhiteSpace(category)) q = q.Where(x => x.Category.ToLower() == category.ToLower());
-        if (!string.IsNullOrWhiteSpace(startDate)) q = q.Where(x => string.Compare(x.MeetingDate, startDate, StringComparison.Ordinal) >= 0);
-        if (!string.IsNullOrWhiteSpace(endDate)) q = q.Where(x => string.Compare(x.MeetingDate, endDate, StringComparison.Ordinal) <= 0);
+        if (!string.IsNullOrWhiteSpace(startDate) && DateTime.TryParse(startDate, out var sd)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date >= sd.Date);
+        if (!string.IsNullOrWhiteSpace(endDate) && DateTime.TryParse(endDate, out var ed)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date <= ed.Date);
         var result = await q.Select(x => new { id = x.Id, title = x.Title, meetingDate = x.MeetingDate, category = x.Category, classification = x.Classification, isDraft = x.IsDraft }).ToListAsync();
         return Ok(result);
     }
@@ -93,8 +93,8 @@ public class MeetingRequestsController : ControllerBase
 public class MeetingRequestBody
 {
     public string? MeetingTitle { get; set; }
-    public string? MeetingDate { get; set; }
-    public string? AlternateDate { get; set; }
+    public DateTime? MeetingDate { get; set; }
+    public DateTime? AlternateDate { get; set; }
     public string? MeetingCategory { get; set; }
     public string? MeetingSubcategory { get; set; }
     public string? MeetingDescription { get; set; }

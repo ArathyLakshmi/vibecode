@@ -4,8 +4,8 @@ public class MeetingRequest
 {
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
-    public string MeetingDate { get; set; } = string.Empty;
-    public string AlternateDate { get; set; } = string.Empty;
+    public DateTime? MeetingDate { get; set; }
+    public DateTime? AlternateDate { get; set; }
     public string Category { get; set; } = string.Empty;
     public string Subcategory { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
