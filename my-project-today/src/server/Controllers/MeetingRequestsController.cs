@@ -34,6 +34,11 @@ public class MeetingRequestsController : ControllerBase
             return Ok(new { id = existing.Id, duplicate = true });
         }
 
+        string resolvedRequestor = null;
+        if (User?.Identity?.IsAuthenticated == true)
+        {
+            resolvedRequestor = User.FindFirst("name")?.Value ?? User.FindFirst("preferred_username")?.Value ?? User.Identity?.Name;
+        }
         var entity = new MeetingRequest
         {
             Title = body.MeetingTitle ?? string.Empty,
@@ -44,7 +49,7 @@ public class MeetingRequestsController : ControllerBase
             Description = body.MeetingDescription ?? string.Empty,
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
-            RequestorName = body.RequestorName ?? string.Empty,
+            RequestorName = resolvedRequestor ?? (body.RequestorName ?? string.Empty),
             RequestType = body.RequestType ?? string.Empty,
             Country = body.Country ?? string.Empty,
             IsDraft = false,
@@ -74,6 +79,11 @@ public class MeetingRequestsController : ControllerBase
     {
         if (body is null) return BadRequest(new { error = "Body required" });
         body.NormalizeAliases();
+        string resolvedDraftRequestor = null;
+        if (User?.Identity?.IsAuthenticated == true)
+        {
+            resolvedDraftRequestor = User.FindFirst("name")?.Value ?? User.FindFirst("preferred_username")?.Value ?? User.Identity?.Name;
+        }
         var entity = new MeetingRequest
         {
             Title = body.MeetingTitle ?? string.Empty,
@@ -84,7 +94,7 @@ public class MeetingRequestsController : ControllerBase
             Description = body.MeetingDescription ?? string.Empty,
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
-            RequestorName = body.RequestorName ?? string.Empty,
+            RequestorName = resolvedDraftRequestor ?? (body.RequestorName ?? string.Empty),
             RequestType = body.RequestType ?? string.Empty,
             Country = body.Country ?? string.Empty,
             IsDraft = true,
@@ -120,12 +130,19 @@ public class MeetingRequestsController : ControllerBase
             classification = x.Classification,
             isDraft = x.IsDraft,
             referenceNumber = x.ReferenceNumber,
-            // placeholders for fields expected by the UI; populate in future iterations
-            requestorName = "",
-            requestType = "",
-            country = ""
+            requestorName = x.RequestorName,
+            requestType = x.RequestType,
+            country = x.Country
         }).ToListAsync();
         return Ok(result);
+    }
+
+    [HttpGet("whoami")]
+    public IActionResult WhoAmI()
+    {
+        var name = User?.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(name)) return Ok(new { name = (string?)null });
+        return Ok(new { name });
     }
 }
 

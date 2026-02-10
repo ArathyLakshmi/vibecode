@@ -1,9 +1,19 @@
 import React from 'react'
 import MeetingRequestForm from './components/MeetingRequestForm'
 import MeetingRequestsList from './components/MeetingRequestsList'
+import { useMsal } from '@azure/msal-react'
+import { loginRequest } from './auth/msalConfig'
 
 export default function App() {
   const [open, setOpen] = React.useState(false)
+  const { instance, accounts } = useMsal()
+  const isAuthenticated = accounts && accounts.length > 0
+
+  async function handleLogin() {
+    try { await instance.loginPopup(loginRequest) } catch (e) { console.error(e) }
+  }
+
+  function handleLogout() { instance.logoutPopup().catch(() => {}) }
 
   return (
     <div className="min-h-screen bg-gray-100 py-8">
@@ -12,6 +22,13 @@ export default function App() {
 
         <div className="flex justify-center mb-6">
           <button onClick={() => setOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create Meeting Request</button>
+          <div className="ml-4">
+            {isAuthenticated ? (
+              <button onClick={handleLogout} className="px-3 py-2 bg-gray-200 rounded">Logout</button>
+            ) : (
+              <button onClick={handleLogin} className="px-3 py-2 bg-green-600 text-white rounded">Login</button>
+            )}
+          </div>
         </div>
 
         {/* Meeting requests list */}

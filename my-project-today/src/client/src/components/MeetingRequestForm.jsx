@@ -1,4 +1,6 @@
 import React from 'react'
+import { useMsal, useIsAuthenticated, useAccount } from '@azure/msal-react'
+import { loginRequest } from '../auth/msalConfig'
 
 const CATEGORY_OPTIONS = {
   Governance: ['Board Meeting', 'Committee Meeting'],
@@ -13,6 +15,7 @@ const LIMITS = {
 }
 
 export default function MeetingRequestForm() {
+  const [currentUserName, setCurrentUserName] = React.useState(null)
   const [form, setForm] = React.useState({
     title: '',
     date: '',
@@ -30,6 +33,15 @@ export default function MeetingRequestForm() {
   const [status, setStatus] = React.useState(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [savingDraft, setSavingDraft] = React.useState(false)
+
+  const { instance, accounts } = useMsal()
+  const isAuthenticated = useIsAuthenticated()
+  const account = accounts && accounts.length > 0 ? accounts[0] : null
+
+  React.useEffect(() => {
+    if (account && account.name) setCurrentUserName(account.name)
+    else setCurrentUserName(null)
+  }, [account])
 
   const subcategories = form.category ? CATEGORY_OPTIONS[form.category] || [] : []
 
@@ -64,6 +76,16 @@ export default function MeetingRequestForm() {
     if (!validate()) return
     setSubmitting(true)
     try {
+      let requestorToSend = currentUserName ?? (form.requestorName || undefined)
+      let authHeader = {}
+      if (isAuthenticated && account) {
+        try {
+          const resp = await instance.acquireTokenSilent({ scopes: loginRequest.scopes, account })
+          authHeader = { Authorization: `Bearer ${resp.accessToken}` }
+        } catch (e) {
+          try { const resp = await instance.acquireTokenPopup({ scopes: loginRequest.scopes }); authHeader = { Authorization: `Bearer ${resp.accessToken}` } } catch { }
+        }
+      }
       const payload = {
         MeetingTitle: form.title,
         MeetingDate: form.date || null,
@@ -73,13 +95,13 @@ export default function MeetingRequestForm() {
         MeetingDescription: form.description,
         Comments: form.comments,
         Classification: form.classification
-        , RequestorName: form.requestorName || undefined
+        , RequestorName: requestorToSend
         , RequestType: form.requestType || undefined
         , Country: form.country || undefined
       }
       const res = await fetch('/api/meetingrequests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify(payload)
       })
       if (!res.ok) {
@@ -102,6 +124,16 @@ export default function MeetingRequestForm() {
     // allow saving partial drafts without full validation
     setSavingDraft(true)
     try {
+      let requestorToSend = currentUserName ?? (form.requestorName || undefined)
+      let authHeader = {}
+      if (isAuthenticated && account) {
+        try {
+          const resp = await instance.acquireTokenSilent({ scopes: loginRequest.scopes, account })
+          authHeader = { Authorization: `Bearer ${resp.accessToken}` }
+        } catch (e) {
+          try { const resp = await instance.acquireTokenPopup({ scopes: loginRequest.scopes }); authHeader = { Authorization: `Bearer ${resp.accessToken}` } } catch { }
+        }
+      }
       const payload = {
         MeetingTitle: form.title,
         MeetingDate: form.date || null,
@@ -111,13 +143,13 @@ export default function MeetingRequestForm() {
         MeetingDescription: form.description,
         Comments: form.comments,
         Classification: form.classification
-        , RequestorName: form.requestorName || undefined
+        , RequestorName: requestorToSend
         , RequestType: form.requestType || undefined
         , Country: form.country || undefined
       }
       const res = await fetch('/api/meetingrequests/draft', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify(payload)
       })
       if (!res.ok) {
@@ -199,10 +231,17 @@ export default function MeetingRequestForm() {
       </label>
 
       <div className="grid grid-cols-3 gap-4 mt-4">
-        <label className="block">
-          <span className="text-sm font-medium">Requestor</span>
-          <input name="requestorName" value={form.requestorName} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-        </label>
+        {currentUserName ? (
+          <div className="block">
+            <span className="text-sm font-medium">Requestor</span>
+            <div className="mt-1 block w-full border rounded p-2 bg-gray-50">{currentUserName}</div>
+          </div>
+        ) : (
+          <label className="block">
+            <span className="text-sm font-medium">Requestor</span>
+            <input name="requestorName" value={form.requestorName} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
+          </label>
+        )}
 
         <label className="block">
           <span className="text-sm font-medium">Request Type</span>
@@ -229,3 +268,6 @@ export default function MeetingRequestForm() {
     </form>
   )
 }
+
+// end of file
+
