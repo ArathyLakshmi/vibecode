@@ -48,6 +48,20 @@ public class MeetingRequestsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
         _db.MeetingRequests.Add(entity);
+        // Generate a unique 5-digit reference number (numeric, zero-padded)
+        // Try a limited number of times to avoid infinite loops.
+        var rng = new System.Random();
+        const int maxAttempts = 10;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var candidate = rng.Next(0, 100000).ToString("D5");
+            var exists = await _db.MeetingRequests.AnyAsync(x => x.ReferenceNumber == candidate);
+            if (!exists)
+            {
+                entity.ReferenceNumber = candidate;
+                break;
+            }
+        }
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, new { id = entity.Id });
     }
