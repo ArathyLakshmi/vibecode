@@ -15,7 +15,11 @@ export default function MeetingRequestsList() {
         const data = await res.json()
         // API may return an array or an object containing `value`/`Count`
         const list = Array.isArray(data) ? data : (data.value || data)
-        if (!cancelled) setItems(list)
+        const count = (typeof data === 'object' && data !== null && ('Count' in data || 'count' in data)) ? (data.Count ?? data.count) : (Array.isArray(list) ? list.length : 0)
+        if (!cancelled) {
+          setItems(list)
+          setCount(count)
+        }
       } catch (err) {
         if (!cancelled) setError(err.message || String(err))
       } finally {
@@ -35,6 +39,7 @@ export default function MeetingRequestsList() {
 
   return (
     <div className="p-4">
+      <div className="mb-3 text-sm text-gray-600">Showing {count ?? items.length} meeting request(s)</div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white shadow-sm rounded">
           <thead>
