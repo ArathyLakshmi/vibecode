@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
+using VibeCode.Server.Utils;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -16,8 +18,10 @@ public class MeetingRequestsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });
-        if (string.IsNullOrWhiteSpace(body.MeetingTitle) || !body.MeetingDate.HasValue)
-            return BadRequest(new { error = "Missing required fields" });
+        if (string.IsNullOrWhiteSpace(body.MeetingTitle))
+            return BadRequest(new { error = "Missing required field: MeetingTitle" });
+        if (!body.MeetingDate.HasValue)
+            return BadRequest(new { error = "Missing or invalid required field: MeetingDate" });
 
         // duplicate detection: title + date + category
         var existing = await _db.MeetingRequests.FirstOrDefaultAsync(x => !x.IsDraft
@@ -93,7 +97,9 @@ public class MeetingRequestsController : ControllerBase
 public class MeetingRequestBody
 {
     public string? MeetingTitle { get; set; }
+    [JsonConverter(typeof(FlexibleDateTimeConverter))]
     public DateTime? MeetingDate { get; set; }
+    [JsonConverter(typeof(FlexibleDateTimeConverter))]
     public DateTime? AlternateDate { get; set; }
     public string? MeetingCategory { get; set; }
     public string? MeetingSubcategory { get; set; }
