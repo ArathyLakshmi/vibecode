@@ -4,6 +4,7 @@ export default function MeetingRequestsList() {
   const [items, setItems] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(null)
+  const [count, setCount] = React.useState(null)
 
   React.useEffect(() => {
     let cancelled = false
