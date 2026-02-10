@@ -1,13 +1,16 @@
 import React from 'react'
 import MeetingRequestForm from './components/MeetingRequestForm'
 import MeetingRequestsList from './components/MeetingRequestsList'
+import Dashboard from './components/Dashboard'
 import { useMsal } from '@azure/msal-react'
 import { loginRequest } from './auth/msalConfig'
+import { useIsAuthenticated } from '@azure/msal-react'
 
 export default function App() {
   const [open, setOpen] = React.useState(false)
+  const [showDashboard, setShowDashboard] = React.useState(false)
   const { instance, accounts } = useMsal()
-  const isAuthenticated = accounts && accounts.length > 0
+  const isAuthenticated = useIsAuthenticated()
 
   async function handleLogin() {
     try { await instance.loginPopup(loginRequest) } catch (e) { console.error(e) }
@@ -20,8 +23,9 @@ export default function App() {
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold mb-6 text-center">Unified Board Solutions</h1>
 
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-6 gap-4">
           <button onClick={() => setOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create Meeting Request</button>
+          <button onClick={() => setShowDashboard(d => !d)} className="px-4 py-2 bg-indigo-600 text-white rounded">Dashboard</button>
           <div className="ml-4">
             {isAuthenticated ? (
               <button onClick={handleLogout} className="px-3 py-2 bg-gray-200 rounded">Logout</button>
@@ -35,6 +39,13 @@ export default function App() {
         <div className="mb-6">
           <MeetingRequestsList />
         </div>
+
+        {/* Dashboard section (togglable) */}
+        {showDashboard && (
+          <div className="mb-6">
+            <Dashboard />
+          </div>
+        )}
 
         {/* Drawer overlay */}
         <div className={`fixed inset-0 bg-black bg-opacity-40 transition-opacity ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setOpen(false)} />
