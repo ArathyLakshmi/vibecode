@@ -18,6 +18,7 @@ public class MeetingRequestsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });
+        body.NormalizeAliases();
         if (string.IsNullOrWhiteSpace(body.MeetingTitle))
             return BadRequest(new { error = "Missing required field: MeetingTitle" });
         if (!body.MeetingDate.HasValue)
@@ -55,6 +56,7 @@ public class MeetingRequestsController : ControllerBase
     public async Task<IActionResult> SaveDraft([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });
+        body.NormalizeAliases();
         var entity = new MeetingRequest
         {
             Title = body.MeetingTitle ?? string.Empty,
@@ -106,4 +108,56 @@ public class MeetingRequestBody
     public string? MeetingDescription { get; set; }
     public string? Comments { get; set; }
     public string? Classification { get; set; }
+    [JsonExtensionData]
+    public System.Collections.Generic.Dictionary<string, System.Text.Json.JsonElement>? ExtensionData { get; set; }
+}
+
+// helper to map legacy client field names to our model
+static partial class MeetingRequestBodyExtensions
+{
+    public static void NormalizeAliases(this MeetingRequestBody body)
+    {
+        if (body.ExtensionData == null) return;
+        string? GetString(string key)
+        {
+            if (body.ExtensionData.TryGetValue(key, out var el))
+            {
+                if (el.ValueKind == System.Text.Json.JsonValueKind.String) return el.GetString();
+                try { return el.ToString(); } catch { return null; }
+            }
+            return null;
+        }
+
+        DateTime? ParseDate(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            if (DateTime.TryParse(s, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)) return dt;
+            if (DateTime.TryParseExact(s, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.AssumeUniversal, out dt)) return dt;
+            if (DateTime.TryParse(s, out dt)) return dt;
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(body.MeetingTitle))
+        {
+            var v = GetString("title") ?? GetString("MeetingTitle");
+            if (!string.IsNullOrWhiteSpace(v)) body.MeetingTitle = v;
+        }
+        if (!body.MeetingDate.HasValue)
+        {
+            var v = GetString("date") ?? GetString("MeetingDate");
+            var d = ParseDate(v);
+            if (d.HasValue) body.MeetingDate = d;
+        }
+        if (!body.AlternateDate.HasValue)
+        {
+            var v = GetString("altDate") ?? GetString("alternateDate") ?? GetString("AlternateDate");
+            var d = ParseDate(v);
+            if (d.HasValue) body.AlternateDate = d;
+        }
+        if (string.IsNullOrWhiteSpace(body.MeetingCategory)) body.MeetingCategory = GetString("category") ?? GetString("MeetingCategory");
+        if (string.IsNullOrWhiteSpace(body.MeetingSubcategory)) body.MeetingSubcategory = GetString("subcategory") ?? GetString("MeetingSubcategory");
+        if (string.IsNullOrWhiteSpace(body.MeetingDescription)) body.MeetingDescription = GetString("description") ?? GetString("MeetingDescription");
+        if (string.IsNullOrWhiteSpace(body.Comments)) body.Comments = GetString("comments") ?? GetString("Comments");
+        if (string.IsNullOrWhiteSpace(body.Classification)) body.Classification = GetString("classification") ?? GetString("Classification");
+    }
 }
