@@ -21,7 +21,10 @@ export default function MeetingRequestForm() {
     subcategory: '',
     description: '',
     comments: '',
-    classification: ''
+    classification: '',
+    requestorName: '',
+    requestType: '',
+    country: ''
   })
   const [errors, setErrors] = React.useState({})
   const [status, setStatus] = React.useState(null)
@@ -70,6 +73,9 @@ export default function MeetingRequestForm() {
         MeetingDescription: form.description,
         Comments: form.comments,
         Classification: form.classification
+        , RequestorName: form.requestorName || undefined
+        , RequestType: form.requestType || undefined
+        , Country: form.country || undefined
       }
       const res = await fetch('/api/meetingrequests', {
         method: 'POST',
@@ -105,6 +111,9 @@ export default function MeetingRequestForm() {
         MeetingDescription: form.description,
         Comments: form.comments,
         Classification: form.classification
+        , RequestorName: form.requestorName || undefined
+        , RequestType: form.requestType || undefined
+        , Country: form.country || undefined
       }
       const res = await fetch('/api/meetingrequests/draft', {
         method: 'POST',
@@ -188,6 +197,23 @@ export default function MeetingRequestForm() {
         <input name="classification" value={form.classification} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
         {errors.classification && <div className="text-red-600 text-sm">{errors.classification}</div>}
       </label>
+
+      <div className="grid grid-cols-3 gap-4 mt-4">
+        <label className="block">
+          <span className="text-sm font-medium">Requestor</span>
+          <input name="requestorName" value={form.requestorName} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">Request Type</span>
+          <input name="requestType" value={form.requestType} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">Country</span>
+          <input name="country" value={form.country} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
+        </label>
+      </div>
 
       <div className="mt-6 flex items-center gap-4">
         <button type="submit" disabled={submitting} className={`px-4 py-2 rounded ${submitting ? 'bg-gray-400' : 'bg-blue-600 text-white'}`}>
