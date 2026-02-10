@@ -15,6 +15,7 @@ public class MeetingRequestsController : ControllerBase
     }
 
     [HttpPost]
+    [Microsoft.AspNetCore.Authorization.Authorize]
     public async Task<IActionResult> Create([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });
@@ -75,6 +76,7 @@ public class MeetingRequestsController : ControllerBase
     }
 
     [HttpPost("draft")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
     public async Task<IActionResult> SaveDraft([FromBody] MeetingRequestBody body)
     {
         if (body is null) return BadRequest(new { error = "Body required" });

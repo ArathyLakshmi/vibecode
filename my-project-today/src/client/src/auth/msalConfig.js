@@ -22,4 +22,10 @@ export const loginRequest = {
   scopes
 };
 
+export const logoutRequest = {
+  postLogoutRedirectUri: redirectUri
+};
+
 export const pca = new PublicClientApplication(msalConfig)
+
+export default pca

@@ -38,6 +38,16 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseRouting();
+
+// Allow popups opened by the app to communicate back to the opener when navigating
+// to external identity providers (MSAL popup flows). Without this header, some
+// browsers' cross-origin opener policies will block `window.closed` / opener access.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups";
+    await next();
+});
+
 app.UseStaticFiles();
 
 // Enable authentication/authorization middleware if configured
@@ -45,6 +55,27 @@ if (!string.IsNullOrWhiteSpace(authority) && !string.IsNullOrWhiteSpace(audience
 {
     app.UseAuthentication();
     app.UseAuthorization();
+}
+
+// Middleware: protect SPA routes by redirecting unauthenticated users to /login
+if (!string.IsNullOrWhiteSpace(authority) && !string.IsNullOrWhiteSpace(audience))
+{
+    app.Use(async (context, next) =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        // Skip API and static assets and the login route
+        if (!path.StartsWith("/api") && !path.StartsWith("/login") && !Path.HasExtension(path))
+        {
+            var user = context.User;
+            if (user?.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                // Redirect to SPA login route
+                context.Response.Redirect("/login");
+                return;
+            }
+        }
+        await next();
+    });
 }
 
 app.UseEndpoints(endpoints =>

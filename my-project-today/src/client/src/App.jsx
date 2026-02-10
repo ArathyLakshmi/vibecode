@@ -1,22 +1,33 @@
 import React from 'react'
+import { Routes, Route, Link } from 'react-router-dom'
 import MeetingRequestForm from './components/MeetingRequestForm'
 import MeetingRequestsList from './components/MeetingRequestsList'
 import Dashboard from './components/Dashboard'
-import { useMsal } from '@azure/msal-react'
-import { loginRequest } from './auth/msalConfig'
-import { useIsAuthenticated } from '@azure/msal-react'
+import Login from './components/Login'
+import RequireAuth from './auth/RequireAuth'
+import { useMsal, useIsAuthenticated } from './auth/useAuth'
+import { loginRequest, logoutRequest } from './auth/msalConfig'
+import { useNavigate } from 'react-router-dom'
 
-export default function App() {
+function Home() {
   const [open, setOpen] = React.useState(false)
   const [showDashboard, setShowDashboard] = React.useState(false)
-  const { instance, accounts } = useMsal()
+  const { instance } = useMsal()
   const isAuthenticated = useIsAuthenticated()
+  const navigate = useNavigate()
 
   async function handleLogin() {
     try { await instance.loginPopup(loginRequest) } catch (e) { console.error(e) }
   }
 
-  function handleLogout() { instance.logoutPopup().catch(() => {}) }
+  async function handleLogout() {
+    try {
+      await instance.logoutPopup(logoutRequest)
+      navigate('/login', { replace: true })
+    } catch (e) {
+      console.error('Logout failed', e)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 py-8">
@@ -62,5 +73,16 @@ export default function App() {
         </aside>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
+      {/* fallback to home for any other client-side routes */}
+      <Route path="*" element={<RequireAuth><Home /></RequireAuth>} />
+    </Routes>
   )
 }
