@@ -31,3 +31,6 @@ app.UseEndpoints(endpoints =>
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Expose Program class for integration tests
+public partial class Program { }
