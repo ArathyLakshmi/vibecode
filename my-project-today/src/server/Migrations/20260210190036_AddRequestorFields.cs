@@ -17,11 +17,6 @@ namespace VibeCode.Server.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            migrationBuilder.AddColumn<string>(
-                name: "ReferenceNumber",
-                table: "MeetingRequests",
-                type: "TEXT",
-                nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "RequestType",
@@ -45,9 +40,6 @@ namespace VibeCode.Server.Migrations
                 name: "Country",
                 table: "MeetingRequests");
 
-            migrationBuilder.DropColumn(
-                name: "ReferenceNumber",
-                table: "MeetingRequests");
 
             migrationBuilder.DropColumn(
                 name: "RequestType",
