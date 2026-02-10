@@ -61,10 +61,20 @@ export default function MeetingRequestForm() {
     if (!validate()) return
     setSubmitting(true)
     try {
+      const payload = {
+        MeetingTitle: form.title,
+        MeetingDate: form.date || null,
+        AlternateDate: form.altDate || null,
+        MeetingCategory: form.category,
+        MeetingSubcategory: form.subcategory,
+        MeetingDescription: form.description,
+        Comments: form.comments,
+        Classification: form.classification
+      }
       const res = await fetch('/api/meetingrequests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
       if (!res.ok) {
         const err = await res.text()
@@ -86,10 +96,20 @@ export default function MeetingRequestForm() {
     // allow saving partial drafts without full validation
     setSavingDraft(true)
     try {
+      const payload = {
+        MeetingTitle: form.title,
+        MeetingDate: form.date || null,
+        AlternateDate: form.altDate || null,
+        MeetingCategory: form.category,
+        MeetingSubcategory: form.subcategory,
+        MeetingDescription: form.description,
+        Comments: form.comments,
+        Classification: form.classification
+      }
       const res = await fetch('/api/meetingrequests/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
       if (!res.ok) {
         const err = await res.text()
