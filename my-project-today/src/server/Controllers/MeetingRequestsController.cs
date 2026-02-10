@@ -44,6 +44,9 @@ public class MeetingRequestsController : ControllerBase
             Description = body.MeetingDescription ?? string.Empty,
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
+            RequestorName = body.RequestorName ?? string.Empty,
+            RequestType = body.RequestType ?? string.Empty,
+            Country = body.Country ?? string.Empty,
             IsDraft = false,
             CreatedAt = DateTime.UtcNow
         };
@@ -81,6 +84,9 @@ public class MeetingRequestsController : ControllerBase
             Description = body.MeetingDescription ?? string.Empty,
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
+            RequestorName = body.RequestorName ?? string.Empty,
+            RequestType = body.RequestType ?? string.Empty,
+            Country = body.Country ?? string.Empty,
             IsDraft = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -105,7 +111,20 @@ public class MeetingRequestsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(category)) q = q.Where(x => x.Category.ToLower() == category.ToLower());
         if (!string.IsNullOrWhiteSpace(startDate) && DateTime.TryParse(startDate, out var sd)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date >= sd.Date);
         if (!string.IsNullOrWhiteSpace(endDate) && DateTime.TryParse(endDate, out var ed)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date <= ed.Date);
-        var result = await q.Select(x => new { id = x.Id, title = x.Title, meetingDate = x.MeetingDate, category = x.Category, classification = x.Classification, isDraft = x.IsDraft }).ToListAsync();
+        var result = await q.Select(x => new
+        {
+            id = x.Id,
+            title = x.Title,
+            meetingDate = x.MeetingDate,
+            category = x.Category,
+            classification = x.Classification,
+            isDraft = x.IsDraft,
+            referenceNumber = x.ReferenceNumber,
+            // placeholders for fields expected by the UI; populate in future iterations
+            requestorName = "",
+            requestType = "",
+            country = ""
+        }).ToListAsync();
         return Ok(result);
     }
 }
@@ -122,6 +141,10 @@ public class MeetingRequestBody
     public string? MeetingDescription { get; set; }
     public string? Comments { get; set; }
     public string? Classification { get; set; }
+    // Optional UI fields
+    public string? RequestorName { get; set; }
+    public string? RequestType { get; set; }
+    public string? Country { get; set; }
     [JsonExtensionData]
     public System.Collections.Generic.Dictionary<string, System.Text.Json.JsonElement>? ExtensionData { get; set; }
 }
@@ -173,5 +196,8 @@ static partial class MeetingRequestBodyExtensions
         if (string.IsNullOrWhiteSpace(body.MeetingDescription)) body.MeetingDescription = GetString("description") ?? GetString("MeetingDescription");
         if (string.IsNullOrWhiteSpace(body.Comments)) body.Comments = GetString("comments") ?? GetString("Comments");
         if (string.IsNullOrWhiteSpace(body.Classification)) body.Classification = GetString("classification") ?? GetString("Classification");
+        if (string.IsNullOrWhiteSpace(body.RequestorName)) body.RequestorName = GetString("requestor") ?? GetString("requestorName") ?? GetString("requestor_name");
+        if (string.IsNullOrWhiteSpace(body.RequestType)) body.RequestType = GetString("requestType") ?? GetString("type");
+        if (string.IsNullOrWhiteSpace(body.Country)) body.Country = GetString("country") ?? GetString("Country");
     }
 }

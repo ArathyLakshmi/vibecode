@@ -6,6 +6,10 @@ public class MeetingRequest
     public string Title { get; set; } = string.Empty;
     // 5-digit reference number, e.g. "01234"
     public string? ReferenceNumber { get; set; }
+    // Requestor details
+    public string RequestorName { get; set; } = string.Empty;
+    public string RequestType { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
     public DateTime? MeetingDate { get; set; }
     public DateTime? AlternateDate { get; set; }
     public string Category { get; set; } = string.Empty;
