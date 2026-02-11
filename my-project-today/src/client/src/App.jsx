@@ -14,6 +14,7 @@ function Home() {
   const [inputValue, setInputValue] = React.useState('')
   const [searchTerm, setSearchTerm] = React.useState('')
   const [isSearching, setIsSearching] = React.useState(false)
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
   const { instance } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const navigate = useNavigate()
@@ -47,11 +48,30 @@ function Home() {
   }
 
   async function handleLogout() {
+    // Prevent duplicate logout attempts
+    if (isLoggingOut) return
+    
+    setIsLoggingOut(true)
+    
     try {
-      await instance.logoutPopup(logoutRequest)
-      navigate('/login', { replace: true })
+      // Use logoutRedirect instead of logoutPopup
+      // Note: Code after this won't execute due to redirect
+      await instance.logoutRedirect(logoutRequest)
     } catch (e) {
       console.error('Logout failed', e)
+      
+      // Graceful degradation: Clear local session even on error
+      try {
+        instance.clearCache()
+      } catch (clearError) {
+        console.error('Failed to clear cache', clearError)
+      }
+      
+      // Navigate to login as fallback
+      navigate('/login', { replace: true })
+      
+      // Re-enable button on error so user can retry
+      setIsLoggingOut(false)
     }
   }
 
@@ -65,7 +85,17 @@ function Home() {
         <button onClick={() => setOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create Meeting Request</button>
         <div className="ml-4">
           {isAuthenticated ? (
-            <button onClick={handleLogout} className="px-3 py-2 bg-gray-200 rounded">Logout</button>
+            <button 
+              onClick={handleLogout} 
+              disabled={isLoggingOut}
+              className={`px-3 py-2 rounded ${
+                isLoggingOut 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-gray-200 hover:bg-gray-300'
+              }`}
+            >
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </button>
           ) : (
             <button onClick={handleLogin} className="px-3 py-2 bg-green-600 text-white rounded">Login</button>
           )}
