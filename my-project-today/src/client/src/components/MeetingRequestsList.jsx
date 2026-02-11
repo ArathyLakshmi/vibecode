@@ -1,6 +1,39 @@
 import React from 'react'
 
-export default function MeetingRequestsList() {
+/**
+ * Checks if a meeting request matches the search term
+ * Performs case-insensitive partial matching across all searchable fields
+ * 
+ * @param {Object} item - Meeting request object
+ * @param {string} searchTerm - Search term to match
+ * @returns {boolean} - True if item matches search term, false otherwise
+ */
+function matchesSearch(item, searchTerm) {
+  // If no search term, show all items
+  if (!searchTerm || searchTerm.trim() === '') {
+    return true
+  }
+
+  // Convert search term to lowercase for case-insensitive matching
+  const query = searchTerm.toLowerCase().trim()
+
+  // Define searchable fields (handle both camelCase and PascalCase from API)
+  const searchableFields = [
+    item.referenceNumber ?? item.ReferenceNumber,
+    item.requestorName ?? item.requestor,
+    item.requestType ?? item.type,
+    item.country,
+    item.title ?? item.meetingTitle,
+    formatDate(item.meetingDate ?? item.boardDate ?? item.MeetingDate)
+  ]
+
+  // Check if any field contains the search term (partial match)
+  return searchableFields.some(field => 
+    String(field || '').toLowerCase().includes(query)
+  )
+}
+
+export default function MeetingRequestsList({ searchTerm = '' }) {
   const [items, setItems] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(null)
@@ -38,9 +71,25 @@ export default function MeetingRequestsList() {
     return <div className="p-4">No meeting requests found.</div>
   }
 
+  // Filter items based on search term
+  const filteredItems = items.filter(item => matchesSearch(item, searchTerm))
+
+  // Show "No results found" if search returns no matches
+  if (filteredItems.length === 0) {
+    return (
+      <div className="p-4" data-testid="meeting-requests-list">
+        <div className="text-center py-8 text-gray-500" data-testid="no-results-message">
+          No results found for "{searchTerm}"
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-4">
-      <div className="mb-3 text-sm text-gray-600">Showing {count ?? items.length} meeting request(s)</div>
+    <div className="p-4" data-testid="meeting-requests-list">
+      <div className="mb-3 text-sm text-gray-600">
+        Showing {filteredItems.length} of {count ?? items.length} meeting request(s)
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white shadow-sm rounded">
           <thead>
@@ -54,9 +103,9 @@ export default function MeetingRequestsList() {
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
-              <tr key={it.id} className="border-b hover:bg-gray-50">
-                <td className="px-4 py-2">{it.referenceNumber ?? it.ReferenceNumber ?? '—'}</td>
+            {filteredItems.map((it) => (
+              <tr key={it.id} className="border-b hover:bg-gray-50" data-testid="meeting-request-item">
+                <td className="px-4 py-2" data-testid="reference-number">{it.referenceNumber ?? it.ReferenceNumber ?? '—'}</td>
                 <td className="px-4 py-2">{it.requestorName ?? it.requestor ?? '—'}</td>
                 <td className="px-4 py-2">{it.requestType ?? it.type ?? '—'}</td>
                 <td className="px-4 py-2">{it.country ?? '—'}</td>
