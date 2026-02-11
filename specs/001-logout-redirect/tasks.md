@@ -19,10 +19,10 @@ Replace popup-based logout with redirect-based logout for improved UX, reliabili
 
 ### Tasks
 
-- [ ] T001 Verify Node.js and npm are installed and client dependencies are up to date in src/client/package.json
-- [ ] T002 Verify Playwright is installed and E2E test infrastructure is functional in src/client/e2e/
-- [ ] T003 Verify MSAL configuration has postLogoutRedirectUri set in src/client/src/auth/msalConfig.js
-- [ ] T004 Verify branch 001-logout-redirect is checked out and up to date with main
+- [X] T001 Verify Node.js and npm are installed and client dependencies are up to date in src/client/package.json
+- [X] T002 Verify Playwright is installed and E2E test infrastructure is functional in src/client/e2e/
+- [X] T003 Verify MSAL configuration has postLogoutRedirectUri set in src/client/src/auth/msalConfig.js
+- [X] T004 Verify branch 001-logout-redirect is checked out and up to date with main
 
 **Completion Criteria**: All dependencies installed, E2E tests can run, MSAL config verified, correct branch active.
 
@@ -34,8 +34,8 @@ Replace popup-based logout with redirect-based logout for improved UX, reliabili
 
 ### Tasks
 
-- [ ] T005 Verify or create E2E test file at src/client/e2e/tests/auth.spec.ts
-- [ ] T006 Verify Playwright configuration supports authentication flows in src/client/e2e/playwright.config.ts
+- [X] T005 Verify or create E2E test file at src/client/e2e/tests/auth.spec.ts
+- [X] T006 Verify Playwright configuration supports authentication flows in src/client/e2e/playwright.config.ts
 
 **Completion Criteria**: Test file exists, Playwright configured for auth testing, ready to write redirect tests.
 
@@ -192,6 +192,58 @@ Simple revert if issues arise:
 1. Revert commit with T010-T012 changes
 2. Revert commit with T007-T008 test changes
 3. Redeploy (< 5 minutes total)
+
+---
+
+## Testing Strategy
+
+### E2E Tests (Playwright)
+- **T007**: Main redirect flow (5 assertions)
+- **T008**: Rapid click prevention (2 assertions)
+- **T019**: Regression test for other auth flows
+
+Expected test run time: < 30 seconds for logout tests
+
+### Manual Testing Checklist
+- **T014**: Desktop browser verification
+- **T015**: Multi-tab behavior
+- **T016**: Error handling (offline mode)
+
+Expected manual test time: 10-15 minutes
+
+### Test Coverage Goals
+- ✅ 100% of acceptance scenarios from spec.md
+- ✅ All edge cases from spec clarifications
+- ✅ Error handling paths (network failure, config errors)
+
+---
+
+## Post-Deployment Bug Fixes
+
+### Bug Fix 1 (Commit 1fce596) - February 10, 2026
+**Issue**: User reported intermediate login screen flash before Microsoft logout page  
+**Root Cause**: MSAL's logoutRedirect() clears tokens synchronously, triggering RequireAuth redirect before browser redirect  
+**Attempted Fix**: Changed postLogoutRedirectUri from root URL to `/login` path  
+**Result**: ❌ Did not resolve - RequireAuth redirect still occurred before Microsoft redirect  
+**Files Changed**: src/client/src/auth/msalConfig.js  
+**Status**: Superseded by Bug Fix 2
+
+### Bug Fix 2 (Commit b48a047) - February 10, 2026
+**Issue**: Same - intermediate login screen flash persists  
+**Root Cause Analysis**: Changing postLogoutRedirectUri didn't prevent RequireAuth from detecting cleared tokens  
+**Solution**: Navigate to `/login` proactively BEFORE calling logoutRedirect(), with 100ms delay for navigation to complete  
+**Implementation**:
+- Added `navigate('/login', { replace: true })` immediately after `setIsLoggingOut(true)`
+- Wrapped `instance.logoutRedirect()` in `setTimeout(() => {...}, 100)` to let navigation complete
+- Flow: Click logout → Navigate to /login → Wait 100ms → Clear tokens & redirect to Microsoft → Return to /login
+**Files Changed**: src/client/src/App.jsx  
+**Result**: ✅ Expected to resolve - smooth transition without intermediate flash  
+**Status**: Deployed to GitHub, awaiting user validation
+
+### Lessons Learned
+1. **Token clearing timing**: MSAL's logoutRedirect() clears tokens synchronously before redirect, creating race with React Router guards
+2. **postLogoutRedirectUri limitation**: Only controls where Microsoft redirects back, doesn't affect pre-redirect behavior
+3. **Proactive navigation**: Navigate before token clearing prevents RequireAuth trigger during intermediate state
 
 ---
 
