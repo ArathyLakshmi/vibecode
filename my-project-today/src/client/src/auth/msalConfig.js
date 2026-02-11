@@ -23,7 +23,7 @@ export const loginRequest = {
 };
 
 export const logoutRequest = {
-  postLogoutRedirectUri: redirectUri
+  postLogoutRedirectUri: `${redirectUri}/login`
 };
 
 export const pca = new PublicClientApplication(msalConfig)
