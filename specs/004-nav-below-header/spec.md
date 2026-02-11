@@ -5,6 +5,14 @@
 **Status**: Draft  
 **Input**: User description: "show nav below global header"
 
+## Clarifications
+
+### Session 2026-02-10
+
+- Q: The spec states the navigation row "MUST be visually distinct from header row (separate background or border)". Which approach should be used? → A: Different background color only (lighter or darker shade than header)
+- Q: With navigation moving to a separate row, where should the mobile hamburger menu button be placed and where should the dropdown appear? → A: Keep hamburger in header, but dropdown appears below both header AND nav rows
+- Q: What vertical spacing should exist between the header row and navigation row? → A: No gap between rows (they touch), background color provides separation
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Dedicated Navigation Bar (Priority: P1)
@@ -40,10 +48,10 @@ When users access the application, they see the primary navigation (Home, Dashbo
 - **FR-001**: System MUST display navigation links (Home, Dashboard, Meetings, Settings) in a separate horizontal row below the main header
 - **FR-002**: System MUST maintain existing navigation functionality (clicking links navigates to correct routes)
 - **FR-003**: System MUST show navigation only for authenticated users (follows existing auth pattern)
-- **FR-004**: System MUST maintain mobile responsiveness with hamburger menu for small screens
+- **FR-004**: System MUST maintain mobile responsiveness with hamburger menu for small screens; hamburger button remains in header row and dropdown menu appears below both header and navigation rows
 - **FR-005**: System MUST maintain desktop layout with horizontal navigation links for large screens
 - **FR-006**: Header row MUST contain logo/brand, search bar (when authenticated), and user account display
-- **FR-007**: Navigation row MUST be visually distinct from header row (separate background or border)
+- **FR-007**: Navigation row MUST be visually distinct from header row using a different background color (lighter or darker shade than the header background); rows touch with no gap between them (background color provides visual separation)
 - **FR-008**: System MUST maintain accessibility features (ARIA labels, keyboard navigation, focus states)
 - **FR-009**: System MUST preserve existing z-index layering for dropdowns and overlays
 
