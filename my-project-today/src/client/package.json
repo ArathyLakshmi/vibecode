@@ -1,0 +1,28 @@
+{
+  "name": "unified-board-solutions-client",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "e2e:build:test": "cross-env VITE_TEST_MODE=true npm run build",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^4.28.1",
+    "@azure/msal-react": "^3.0.25",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+    ,
+    "react-router-dom": "^6.11.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.8",
+    "vite": "^5.0.0",
+    "cross-env": "^7.0.3",
+    "@playwright/test": "^1.40.0"
+  }
+}
