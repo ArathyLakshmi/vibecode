@@ -104,8 +104,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         Showing {filteredItems.length} of {count ?? items.length} meeting request(s)
       </div>
       
-      {/* Card Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Modern List View */}
+      <div className="space-y-3">
         {filteredItems.map((item) => (
           <div
             key={item.id}
@@ -114,49 +114,58 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
             role="button"
             tabIndex={0}
             aria-label={`View details for ${item.title ?? item.meetingTitle ?? 'meeting request'}`}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-300 cursor-pointer p-6"
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-all duration-300 cursor-pointer p-4 md:p-5 hover:border-l-4 hover:border-indigo-500"
             data-testid="meeting-request-card"
           >
-            {/* Title - prominent at top */}
-            <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-              {item.title ?? item.meetingTitle ?? 'Untitled'}
-            </h3>
-            
-            {/* Reference number - secondary */}
-            <div className="mb-4">
-              <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded" data-testid="reference-number">
-                {item.referenceNumber ?? item.ReferenceNumber ?? 'No reference'}
-              </span>
-            </div>
-            
-            {/* 2x2 grid for metadata */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <div>
-                <div className="text-gray-600">Requestor</div>
-                <div className="text-gray-900 font-medium">
-                  {item.requestorName ?? item.requestor ?? '—'}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              {/* Left section: Title and Reference */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-3 mb-2">
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900 truncate flex-1">
+                    {item.title ?? item.meetingTitle ?? 'Untitled'}
+                  </h3>
+                  <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded whitespace-nowrap" data-testid="reference-number">
+                    {item.referenceNumber ?? item.ReferenceNumber ?? 'No ref'}
+                  </span>
+                </div>
+                
+                {/* Metadata row - responsive */}
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="font-medium text-gray-900">{item.requestorName ?? item.requestor ?? '—'}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <span>{item.requestType ?? item.type ?? '—'}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{item.country ?? '—'}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>{formatDate(item.meetingDate ?? item.boardDate ?? item.MeetingDate)}</span>
+                  </div>
                 </div>
               </div>
               
-              <div>
-                <div className="text-gray-600">Type</div>
-                <div className="text-gray-900 font-medium">
-                  {item.requestType ?? item.type ?? '—'}
-                </div>
-              </div>
-              
-              <div>
-                <div className="text-gray-600">Country</div>
-                <div className="text-gray-900 font-medium">
-                  {item.country ?? '—'}
-                </div>
-              </div>
-              
-              <div>
-                <div className="text-gray-600">Board Date</div>
-                <div className="text-gray-900 font-medium">
-                  {formatDate(item.meetingDate ?? item.boardDate ?? item.MeetingDate)}
-                </div>
+              {/* Right section: Action indicator (desktop only) */}
+              <div className="hidden md:flex items-center text-gray-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
             </div>
           </div>
