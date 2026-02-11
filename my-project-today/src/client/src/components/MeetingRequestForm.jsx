@@ -1,6 +1,17 @@
 import React from 'react'
 import { useMsal, useIsAuthenticated, useAccount } from '@azure/msal-react'
 import { loginRequest } from '../auth/msalConfig'
+import {
+  FluentProvider,
+  webLightTheme,
+  Field,
+  Input,
+  Textarea,
+  Dropdown,
+  Button,
+  MessageBar,
+  Text
+} from '@fluentui/react-components'
 
 const CATEGORY_OPTIONS = {
   Governance: ['Board Meeting', 'Committee Meeting'],
@@ -45,9 +56,27 @@ export default function MeetingRequestForm() {
 
   const subcategories = form.category ? CATEGORY_OPTIONS[form.category] || [] : []
 
-  function handleChange(e) {
-    const { name, value } = e.target
-    setForm(f => ({ ...f, [name]: value }))
+  function handleChange(fieldName) {
+    return (e, data) => {
+setForm(f => ({ ...f, [fieldName]: data.value || '' }))
+    }
+  }
+
+  function handleDropdownChange(fieldName) {
+    return (e, option) => {
+      if (fieldName === 'category') {
+        setForm(f => ({ ...f, category: option?.key || '', subcategory: '' }))
+      } else {
+        setForm(f => ({ ...f, [ fieldName]: option?.key || '' }))
+      }
+    }
+  }
+
+  function handleDateChange(fieldName) {
+    return (e) => {
+      const iso = e.target.value || ''
+      setForm(f => ({ ...f, [fieldName]: iso }))
+    }
   }
 
   function validate() {
@@ -166,106 +195,202 @@ export default function MeetingRequestForm() {
   }
 
   return (
-    <form className="max-w-2xl mx-auto p-6 bg-white rounded shadow" onSubmit={handleSubmit}>
-      <h2 className="text-xl font-semibold mb-4">Create Meeting Request</h2>
+    <FluentProvider theme={webLightTheme}>
+      <form className="max-w-2xl mx-auto p-6 bg-white rounded shadow" onSubmit={handleSubmit}>
+        <h2 className="text-xl font-semibold mb-4">Create Meeting Request</h2>
 
-      <label className="block mb-2">
-        <span className="text-sm font-medium">Meeting Title</span>
-        <input name="title" maxLength={LIMITS.title} value={form.title} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-        <div className="text-xs text-gray-500">{form.title.length}/{LIMITS.title}</div>
-        {errors.title && <div className="text-red-600 text-sm">{errors.title}</div>}
-      </label>
-
-      <div className="grid grid-cols-2 gap-4">
-        <label className="block mb-2">
-          <span className="text-sm font-medium">Meeting Date</span>
-          <input type="date" name="date" value={form.date} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-          {errors.date && <div className="text-red-600 text-sm">{errors.date}</div>}
-        </label>
-
-        <label className="block mb-2">
-          <span className="text-sm font-medium">Alternate Date</span>
-          <input type="date" name="altDate" value={form.altDate} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-          {errors.altDate && <div className="text-red-600 text-sm">{errors.altDate}</div>}
-        </label>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        <label className="block">
-          <span className="text-sm font-medium">Meeting Category</span>
-          <select name="category" value={form.category} onChange={handleChange} className="mt-1 block w-full border rounded p-2">
-            <option value="">Select category</option>
-            {Object.keys(CATEGORY_OPTIONS).map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {errors.category && <div className="text-red-600 text-sm">{errors.category}</div>}
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium">Meeting Subcategory</span>
-          <select name="subcategory" value={form.subcategory} onChange={handleChange} className="mt-1 block w-full border rounded p-2">
-            <option value="">Select subcategory</option>
-            {subcategories.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {errors.subcategory && <div className="text-red-600 text-sm">{errors.subcategory}</div>}
-        </label>
-      </div>
-
-      <label className="block mt-4">
-        <span className="text-sm font-medium">Meeting Description</span>
-        <textarea name="description" maxLength={LIMITS.description} value={form.description} onChange={handleChange} className="mt-1 block w-full border rounded p-2" rows={4} />
-        <div className="text-xs text-gray-500">{form.description.length}/{LIMITS.description}</div>
-        {errors.description && <div className="text-red-600 text-sm">{errors.description}</div>}
-      </label>
-
-      <label className="block mt-4">
-        <span className="text-sm font-medium">Comments</span>
-        <textarea name="comments" maxLength={LIMITS.comments} value={form.comments} onChange={handleChange} className="mt-1 block w-full border rounded p-2" rows={2} />
-        <div className="text-xs text-gray-500">{form.comments.length}/{LIMITS.comments}</div>
-        {errors.comments && <div className="text-red-600 text-sm">{errors.comments}</div>}
-      </label>
-
-      <label className="block mt-4">
-        <span className="text-sm font-medium">Classification of Meeting</span>
-        <input name="classification" value={form.classification} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-        {errors.classification && <div className="text-red-600 text-sm">{errors.classification}</div>}
-      </label>
-
-      <div className="grid grid-cols-3 gap-4 mt-4">
-        {currentUserName ? (
-          <div className="block">
-            <span className="text-sm font-medium">Requestor</span>
-            <div className="mt-1 block w-full border rounded p-2 bg-gray-50">{currentUserName}</div>
-          </div>
-        ) : (
-          <label className="block">
-            <span className="text-sm font-medium">Requestor</span>
-            <input name="requestorName" value={form.requestorName} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-          </label>
+        {status && status.ok && (
+          <MessageBar intent="success" className="mb-4">
+            Meeting request submitted successfully (ID: {status.id})
+          </MessageBar>
+        )}
+        
+        {status && status.draft && (
+          <MessageBar intent="info" className="mb-4">
+            Draft saved successfully (ID: {status.id})
+          </MessageBar>
+        )}
+        
+        {status && !status.ok && !status.draft && (
+          <MessageBar intent="error" className="mb-4">
+            Error: {status.message}
+          </MessageBar>
         )}
 
-        <label className="block">
-          <span className="text-sm font-medium">Request Type</span>
-          <input name="requestType" value={form.requestType} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-        </label>
+        <div className="space-y-5">
+          {/* Title Field */}
+          <div className="space-y-1">
+            <Field
+              label="Meeting Title"
+              validationState={errors.title ? "error" : undefined}
+              validationMessage={errors.title}
+            >
+              <Input
+                value={form.title}
+                onChange={handleChange('title')}
+                maxLength={LIMITS.title}
+              />
+            </Field>
+            <Text size={200} className="text-gray-500">
+              {form.title.length}/{LIMITS.title}
+            </Text>
+          </div>
 
-        <label className="block">
-          <span className="text-sm font-medium">Country</span>
-          <input name="country" value={form.country} onChange={handleChange} className="mt-1 block w-full border rounded p-2" />
-        </label>
-      </div>
+          {/* Date Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field
+              label="Meeting Date"
+              validationState={errors.date ? "error" : undefined}
+              validationMessage={errors.date}
+            >
+              <Input
+                type="date"
+                value={form.date}
+                onChange={handleDateChange('date')}
+                placeholder="Select meeting date"
+              />
+            </Field>
+            
+            <Field
+              label="Alternate Date"
+              validationState={errors.altDate ? "error" : undefined}
+              validationMessage={errors.altDate}
+            >
+              <Input
+                type="date"
+                value={form.altDate}
+                onChange={handleDateChange('altDate')}
+                placeholder="Select alternate date"
+              />
+            </Field>
+          </div>
 
-      <div className="mt-6 flex items-center gap-4">
-        <button type="submit" disabled={submitting} className={`px-4 py-2 rounded ${submitting ? 'bg-gray-400' : 'bg-blue-600 text-white'}`}>
-          {submitting ? 'Submitting…' : 'Submit Request'}
-        </button>
-        <button type="button" onClick={handleSaveDraft} disabled={savingDraft} className={`px-3 py-2 rounded border ${savingDraft ? 'bg-gray-100' : ''}`}>
-          {savingDraft ? 'Saving…' : 'Save Draft'}
-        </button>
-        {status && status.ok && <div className="text-green-600">Submitted (id: {status.id})</div>}
-        {status && status.draft && <div className="text-blue-600">Draft saved (id: {status.id})</div>}
-        {status && !status.ok && !status.draft && <div className="text-red-600">Error: {status.message}</div>}
-      </div>
-    </form>
+          {/* Category and Subcategory */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Dropdown
+              label="Meeting Category"
+              placeholder="Select category"
+              selectedKey={form.category || undefined}
+              options={Object.keys(CATEGORY_OPTIONS).map(c => ({ key: c, text: c }))}
+              onChange={handleDropdownChange('category')}
+              validationState={errors.category ? "error" : undefined}
+              validationMessage={errors.category}
+            />
+
+            <Dropdown
+              label="Meeting Subcategory"
+              placeholder="Select subcategory"
+              selectedKey={form.subcategory || undefined}
+              options={subcategories.map(s => ({ key: s, text: s }))}
+              onChange={handleDropdownChange('subcategory')}
+              validationState={errors.subcategory ? "error" : undefined}
+              validationMessage={errors.subcategory}
+              disabled={!form.category}
+            />
+          </div>
+
+          {/* Description Field */}
+          <div className="space-y-1">
+            <Field
+              label="Meeting Description"
+              validationState={errors.description ? "error" : undefined}
+              validationMessage={errors.description}
+            >
+              <Textarea
+                value={form.description}
+                onChange={handleChange('description')}
+                maxLength={LIMITS.description}
+                rows={4}
+              />
+            </Field>
+            <Text size={200} className="text-gray-500">
+              {form.description.length}/{LIMITS.description}
+            </Text>
+          </div>
+
+          {/* Comments Field */}
+          <div className="space-y-1">
+            <Field
+              label="Comments"
+              validationState={errors.comments ? "error" : undefined}
+              validationMessage={errors.comments}
+            >
+              <Textarea
+                value={form.comments}
+                onChange={handleChange('comments')}
+                maxLength={LIMITS.comments}
+                rows={2}
+              />
+            </Field>
+            <Text size={200} className="text-gray-500">
+              {form.comments.length}/{LIMITS.comments}
+            </Text>
+          </div>
+
+          {/* Classification Field */}
+          <Field
+            label="Classification of Meeting"
+            validationState={errors.classification ? "error" : undefined}
+            validationMessage={errors.classification}
+          >
+            <Input
+              value={form.classification}
+              onChange={handleChange('classification')}
+            />
+          </Field>
+
+          {/* Requestor Details */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {currentUserName ? (
+              <Field label="Requestor">
+                <Input value={currentUserName} readOnly />
+              </Field>
+            ) : (
+              <Field label="Requestor">
+                <Input
+                  value={form.requestorName}
+                  onChange={handleChange('requestorName')}
+                />
+              </Field>
+            )}
+
+            <Field label="Request Type">
+              <Input
+                value={form.requestType}
+                onChange={handleChange('requestType')}
+              />
+            </Field>
+
+            <Field label="Country">
+              <Input
+                value={form.country}
+                onChange={handleChange('country')}
+              />
+            </Field>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 mt-6">
+            <Button
+              type="submit"
+              appearance="primary"
+              disabled={submitting}
+            >
+              {submitting ? 'Submitting…' : 'Submit Request'}
+            </Button>
+            
+            <Button
+              type="button"
+              appearance="secondary"
+              onClick={handleSaveDraft}
+              disabled={savingDraft}
+            >
+              {savingDraft ? 'Saving…' : 'Save Draft'}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </FluentProvider>
   )
 }
 
