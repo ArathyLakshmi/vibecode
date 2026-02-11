@@ -127,9 +127,9 @@ Replace popup-based logout with redirect-based logout for improved UX, reliabili
 - [X] T017 [P] Review code for console.error statements and ensure they provide helpful debugging information
 - [X] T018 [P] Verify MSAL error messages are user-friendly in error scenarios
 - [ ] T019 [P] Run full E2E test suite to ensure no regressions in other auth flows
-- [ ] T020 Commit changes with descriptive commit message following conventional commits format
-- [ ] T021 Review all success criteria met: SC-001 through SC-006 from spec.md
-- [ ] T022 Update checklist in specs/001-logout-redirect/checklists/requirements.md as complete
+- [X] T020 Commit changes with descriptive commit message following conventional commits format
+- [X] T021 Review all success criteria met: SC-001 through SC-006 from spec.md
+- [X] T022 Update checklist in specs/001-logout-redirect/checklists/requirements.md as complete
 
 **Completion Criteria**: All tests passing, code committed, success criteria verified, ready for PR/merge.
 
