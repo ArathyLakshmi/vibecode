@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "make the listview modern and responsive with tailwind.css. On select, details page should be opened in the drawer"
 
+## Clarifications
+
+### Session 2026-02-11
+
+- Q: How many columns should the card grid display on desktop (≥1024px) screens? → A: 3 columns (balances information density with card readability)
+- Q: Should the drawer display only the same 6 fields already shown in list cards, or additional detail fields? → A: View-only drawer for Feature 005 (shows same 6 fields: reference number, requestor, type, country, title, date). Role-based workflow actions (cancel, accept, reject, confirm, announce, propose date change with comments) are deferred to Feature 006.
+- Q: Should Feature 005 include workflow management actions or split into separate features? → A: Split features - 005 focuses on modern card layout + view-only drawer, 006 will handle workflow actions and role-based permissions later.
+- Q: How should the 6 fields be arranged within each card? → A: Title prominent at top (large text), reference number below title, remaining 4 fields (requestor, type, country, date) in 2x2 grid layout below
+- Q: Which hover effect should be applied to cards on desktop? → A: Elevation only (shadow increases from subtle to prominent on hover, no border or background change)
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Modern Responsive List View (Priority: P1)
@@ -17,7 +27,7 @@ When users view the meeting requests list, they see a modern, visually appealing
 
 **Acceptance Scenarios**:
 
-1. **Given** a user is on desktop (≥1024px), **When** they view the meeting requests list, **Then** items display in a card grid layout with multiple columns showing all key information clearly
+1. **Given** a user is on desktop (≥1024px), **When** they view the meeting requests list, **Then** items display in a 3-column card grid layout showing all key information clearly
 2. **Given** a user is on tablet (768px-1023px), **When** they view the meeting requests list, **Then** items display in a 2-column card grid with condensed but readable information
 3. **Given** a user is on mobile (<768px), **When** they view the meeting requests list, **Then** items display in a single-column card list with stacked information optimized for small screens
 4. **Given** a user hovers over a list item on desktop, **When** the hover occurs, **Then** the item shows clear visual feedback (elevation, border, or background change) indicating it's clickable
@@ -41,7 +51,7 @@ When users click on any meeting request in the list, they see the detailed infor
 4. **Given** the drawer is open on desktop, **When** the user views it, **Then** the drawer takes approximately 40-50% of screen width, allowing the list to remain partially visible in the background
 5. **Given** a user has the drawer open, **When** they click a different list item, **Then** the drawer content updates to show the newly selected item without closing and reopening (smooth transition)
 6. **Given** the drawer is open, **When** the user presses the Escape key, **Then** the drawer closes
-7. **Given** the drawer displays meeting request details, **When** the user views the content, **Then** all fields from the list (reference number, requestor, type, country, title, date) plus any additional detail fields are shown with clear labels and formatting
+7. **Given** the drawer displays meeting request details, **When** the user views the content, **Then** all fields from the list (reference number, requestor, type, country, title, date) are shown with clear labels and formatting in a read-only view
 
 ---
 
@@ -64,7 +74,7 @@ When users click on any meeting request in the list, they see the detailed infor
 - **FR-002**: System MUST apply modern Tailwind CSS styling to list items including shadows, rounded corners, consistent spacing, and hover effects
 - **FR-003**: System MUST maintain all existing functionality (search filtering, loading states, error handling, empty states)
 - **FR-004**: System MUST open a drawer (slide-out panel) from the right side when a user clicks/taps any meeting request card
-- **FR-005**: Drawer MUST display all meeting request details including reference number, requestor name, request type, country, meeting title, board date, and any additional fields from the API
+- **FR-005**: Drawer MUST display meeting request details in read-only format including reference number, requestor name, request type, country, meeting title, and board date (same fields as list cards)
 - **FR-006**: Drawer MUST be closable via close button (X icon), clicking outside the drawer, or pressing Escape key
 - **FR-007**: Drawer MUST be responsive: full-width on mobile (<768px), approximately 40-50% width on desktop (≥768px)
 - **FR-008**: Drawer MUST have smooth slide-in animation (300ms duration typical) and proper z-index layering above list content
@@ -122,8 +132,13 @@ When users click on any meeting request in the list, they see the detailed infor
 ## Out of Scope
 
 - Adding new data fields to meeting request model
-- Creating new API endpoints (unless user confirms additional data needed)
+- Creating new API endpoints
 - Edit/delete functionality in drawer (viewing only)
+- Role-based action buttons (cancel, accept, reject, confirm, announce)
+- Workflow state management and transitions (pending, confirmed, etc.)
+- Propose date change functionality with comment capture
+- User role detection and permission-based UI (requestor, secadmin, edofficer, managementofficer)
+- **Note**: Workflow management features are deferred to Feature 006
 - Pagination or infinite scroll (current implementation loads all items)
 - Sorting or filtering options beyond existing search
 - Export or print functionality
