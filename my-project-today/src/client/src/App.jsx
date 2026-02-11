@@ -53,26 +53,29 @@ function Home() {
     
     setIsLoggingOut(true)
     
-    try {
-      // Use logoutRedirect instead of logoutPopup
-      // Note: Code after this won't execute due to redirect
-      await instance.logoutRedirect(logoutRequest)
-    } catch (e) {
-      console.error('Logout failed', e)
-      
-      // Graceful degradation: Clear local session even on error
+    // Navigate to login first to avoid RequireAuth redirect flash
+    navigate('/login', { replace: true })
+    
+    // Small delay to ensure navigation completes before redirect
+    setTimeout(async () => {
       try {
-        instance.clearCache()
-      } catch (clearError) {
-        console.error('Failed to clear cache', clearError)
+        // Use logoutRedirect instead of logoutPopup
+        // This will redirect to Microsoft logout, then back to /login
+        await instance.logoutRedirect(logoutRequest)
+      } catch (e) {
+        console.error('Logout failed', e)
+        
+        // Graceful degradation: Clear local session even on error
+        try {
+          instance.clearCache()
+        } catch (clearError) {
+          console.error('Failed to clear cache', clearError)
+        }
+        
+        // Re-enable button on error so user can retry
+        setIsLoggingOut(false)
       }
-      
-      // Navigate to login as fallback
-      navigate('/login', { replace: true })
-      
-      // Re-enable button on error so user can retry
-      setIsLoggingOut(false)
-    }
+    }, 100)
   }
 
   const handleSearchChange = (term) => {
