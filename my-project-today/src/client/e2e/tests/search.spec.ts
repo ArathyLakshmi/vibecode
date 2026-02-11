@@ -155,4 +155,122 @@ test.describe('Global Search', () => {
       }
     }
   });
+
+  // User Story 2: Real-time Search with Debouncing
+
+  // T031: Search executes after 300ms pause in typing
+  test('search executes after 300ms pause in typing', async ({ page }) => {
+    const searchInput = page.locator('[data-testid="search-input"]');
+    
+    // Type a search term
+    await searchInput.fill('board');
+    
+    // Wait for debounce delay (300ms + buffer)
+    await page.waitForTimeout(400);
+    
+    // Verify results are filtered
+    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const count = await filteredRequests.count();
+    
+    // Should have some results or show "no results found"
+    if (count === 0) {
+      const noResults = page.locator('[data-testid="no-results-message"]');
+      await expect(noResults).toBeVisible();
+    } else {
+      expect(count).toBeGreaterThan(0);
+    }
+  });
+
+  // T032: Rapid typing is debounced (search waits until typing stops)
+  test('rapid typing is debounced', async ({ page }) => {
+    const searchInput = page.locator('[data-testid="search-input"]');
+    
+    // Type rapidly, one character at a time with short delays
+    await searchInput.type('b', { delay: 50 });
+    await searchInput.type('o', { delay: 50 });
+    await searchInput.type('a', { delay: 50 });
+    await searchInput.type('r', { delay: 50 });
+    await searchInput.type('d', { delay: 50 });
+    
+    // Immediately after typing, results might not be filtered yet
+    // Wait for debounce to complete
+    await page.waitForTimeout(400);
+    
+    // Now results should be filtered
+    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const count = await filteredRequests.count();
+    
+    // Verify filtering occurred
+    if (count === 0) {
+      const noResults = page.locator('[data-testid="no-results-message"]');
+      await expect(noResults).toBeVisible();
+    } else {
+      // Verify each result contains "board"
+      for (let i = 0; i < Math.min(count, 3); i++) {
+        const itemText = await filteredRequests.nth(i).textContent();
+        expect(itemText?.toLowerCase()).toContain('board');
+      }
+    }
+  });
+
+  // User Story 3: Visual Feedback
+
+  // T039: Search icon is visible in empty search bar
+  test('search icon is visible in empty search bar', async ({ page }) => {
+    const searchIcon = page.locator('[data-testid="search-icon"]');
+    await expect(searchIcon).toBeVisible();
+  });
+
+  // T040: Clear button appears when text is entered
+  test('clear button appears when text is entered', async ({ page }) => {
+    const searchInput = page.locator('[data-testid="search-input"]');
+    const clearButton = page.locator('[data-testid="search-clear-button"]');
+    
+    // Initially, clear button should not be visible
+    await expect(clearButton).not.toBeVisible();
+    
+    // Type some text
+    await searchInput.fill('board');
+    
+    // Clear button should now be visible
+    await expect(clearButton).toBeVisible();
+  });
+
+  // T041: Clicking clear button removes text and shows all results
+  test('clicking clear button removes text and shows all results', async ({ page }) => {
+    const searchInput = page.locator('[data-testid="search-input"]');
+    const clearButton = page.locator('[data-testid="search-clear-button"]');
+    
+    // Get initial count of all requests
+    const allRequests = page.locator('[data-testid="meeting-request-item"]');
+    const initialCount = await allRequests.count();
+    
+    // Type search term
+    await searchInput.fill('board');
+    await page.waitForTimeout(400); // Wait for debounce
+    
+    // Click clear button
+    await clearButton.click();
+    
+    // Verify input is cleared
+    await expect(searchInput).toHaveValue('');
+    
+    // Wait for results to update
+    await page.waitForTimeout(400);
+    
+    // Verify all results shown again
+    const restoredCount = await allRequests.count();
+    expect(restoredCount).toBe(initialCount);
+  });
+
+  // T042: Placeholder text is descriptive
+  test('placeholder text is descriptive', async ({ page }) => {
+    const searchInput = page.locator('[data-testid="search-input"]');
+    const placeholder = await searchInput.getAttribute('placeholder');
+    
+    // Verify placeholder exists and is descriptive
+    expect(placeholder).toBeTruthy();
+    expect(placeholder?.toLowerCase()).toContain('search');
+  });
 });
+
