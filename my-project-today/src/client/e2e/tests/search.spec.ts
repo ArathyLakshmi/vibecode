@@ -34,7 +34,7 @@ test.describe('Global Search', () => {
   // T012: Typing "board" filters results to show only matching items
   test('typing "board" filters results to show only matching items', async ({ page }) => {
     // Get initial count of meeting requests
-    const allRequests = page.locator('[data-testid="meeting-request-item"]');
+    const allRequests = page.locator('[data-testid="meeting-request-card"]');
     const initialCount = await allRequests.count();
     
     // Type "board" in search bar
@@ -44,7 +44,7 @@ test.describe('Global Search', () => {
     await page.waitForTimeout(500);
     
     // Verify filtered results contain "board" (case-insensitive)
-    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const filteredRequests = page.locator('[data-testid="meeting-request-card"]');
     const filteredCount = await filteredRequests.count();
     
     // Should have fewer results (unless all items contain "board")
@@ -62,7 +62,7 @@ test.describe('Global Search', () => {
   // T013: Clearing search shows all meeting requests
   test('clearing search shows all meeting requests', async ({ page }) => {
     // Get initial count
-    const allRequests = page.locator('[data-testid="meeting-request-item"]');
+    const allRequests = page.locator('[data-testid="meeting-request-card"]');
     const initialCount = await allRequests.count();
     
     // Type search term
@@ -96,7 +96,7 @@ test.describe('Global Search', () => {
     // Search with lowercase
     await typeInSearchBar(page, 'board');
     await page.waitForTimeout(500);
-    const lowercaseResults = page.locator('[data-testid="meeting-request-item"]');
+    const lowercaseResults = page.locator('[data-testid="meeting-request-card"]');
     const lowercaseCount = await lowercaseResults.count();
     
     // Clear and search with uppercase
@@ -104,7 +104,7 @@ test.describe('Global Search', () => {
     await searchInput.clear();
     await typeInSearchBar(page, 'BOARD');
     await page.waitForTimeout(500);
-    const uppercaseResults = page.locator('[data-testid="meeting-request-item"]');
+    const uppercaseResults = page.locator('[data-testid="meeting-request-card"]');
     const uppercaseCount = await uppercaseResults.count();
     
     // Should return same number of results
@@ -118,7 +118,7 @@ test.describe('Global Search', () => {
     await page.waitForTimeout(500);
     
     // Verify results contain "meet" as substring
-    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const filteredRequests = page.locator('[data-testid="meeting-request-card"]');
     const count = await filteredRequests.count();
     
     if (count > 0) {
@@ -131,11 +131,11 @@ test.describe('Global Search', () => {
   // T017: Searching by reference number finds specific request
   test('searching by reference number finds specific request', async ({ page }) => {
     // Get the first meeting request's reference number
-    const firstRequest = page.locator('[data-testid="meeting-request-item"]').first();
+    const firstRequest = page.locator('[data-testid="meeting-request-card"]').first();
     const referenceElement = firstRequest.locator('[data-testid="reference-number"]');
     
     // Check if any requests exist
-    const requestCount = await page.locator('[data-testid="meeting-request-item"]').count();
+    const requestCount = await page.locator('[data-testid="meeting-request-card"]').count();
     if (requestCount > 0) {
       const referenceNumber = await referenceElement.textContent();
       
@@ -145,7 +145,7 @@ test.describe('Global Search', () => {
         await page.waitForTimeout(500);
         
         // Verify the specific request is shown
-        const searchResults = page.locator('[data-testid="meeting-request-item"]');
+        const searchResults = page.locator('[data-testid="meeting-request-card"]');
         const resultCount = await searchResults.count();
         expect(resultCount).toBeGreaterThan(0);
         
@@ -169,7 +169,7 @@ test.describe('Global Search', () => {
     await page.waitForTimeout(400);
     
     // Verify results are filtered
-    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const filteredRequests = page.locator('[data-testid="meeting-request-card"]');
     const count = await filteredRequests.count();
     
     // Should have some results or show "no results found"
@@ -197,7 +197,7 @@ test.describe('Global Search', () => {
     await page.waitForTimeout(400);
     
     // Now results should be filtered
-    const filteredRequests = page.locator('[data-testid="meeting-request-item"]');
+    const filteredRequests = page.locator('[data-testid="meeting-request-card"]');
     const count = await filteredRequests.count();
     
     // Verify filtering occurred
@@ -242,7 +242,7 @@ test.describe('Global Search', () => {
     const clearButton = page.locator('[data-testid="search-clear-button"]');
     
     // Get initial count of all requests
-    const allRequests = page.locator('[data-testid="meeting-request-item"]');
+    const allRequests = page.locator('[data-testid="meeting-request-card"]');
     const initialCount = await allRequests.count();
     
     // Type search term

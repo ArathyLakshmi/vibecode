@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react'
+import Drawer from './Drawer'
 
 /**
  * Checks if a meeting request matches the search term
@@ -38,6 +39,7 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(null)
   const [count, setCount] = React.useState(null)
+  const [selectedItem, setSelectedItem] = useState(null)
 
   React.useEffect(() => {
     let cancelled = false
@@ -101,32 +103,111 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       <div className="mb-3 text-sm text-gray-600">
         Showing {filteredItems.length} of {count ?? items.length} meeting request(s)
       </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white shadow-sm rounded">
-          <thead>
-            <tr className="text-left border-b">
-              <th className="px-4 py-2">Reference</th>
-              <th className="px-4 py-2">Requestor</th>
-              <th className="px-4 py-2">Request type</th>
-              <th className="px-4 py-2">Country</th>
-              <th className="px-4 py-2">Meeting title</th>
-              <th className="px-4 py-2">Board date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.map((it) => (
-              <tr key={it.id} className="border-b hover:bg-gray-50" data-testid="meeting-request-item">
-                <td className="px-4 py-2" data-testid="reference-number">{it.referenceNumber ?? it.ReferenceNumber ?? '—'}</td>
-                <td className="px-4 py-2">{it.requestorName ?? it.requestor ?? '—'}</td>
-                <td className="px-4 py-2">{it.requestType ?? it.type ?? '—'}</td>
-                <td className="px-4 py-2">{it.country ?? '—'}</td>
-                <td className="px-4 py-2">{it.title ?? it.meetingTitle ?? '—'}</td>
-                <td className="px-4 py-2">{formatDate(it.meetingDate ?? it.boardDate ?? it.MeetingDate)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      
+      {/* Card Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredItems.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => setSelectedItem(item.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter') setSelectedItem(item.id) }}
+            role="button"
+            tabIndex={0}
+            aria-label={`View details for ${item.title ?? item.meetingTitle ?? 'meeting request'}`}
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-300 cursor-pointer p-6"
+            data-testid="meeting-request-card"
+          >
+            {/* Title - prominent at top */}
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+              {item.title ?? item.meetingTitle ?? 'Untitled'}
+            </h3>
+            
+            {/* Reference number - secondary */}
+            <div className="mb-4">
+              <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded" data-testid="reference-number">
+                {item.referenceNumber ?? item.ReferenceNumber ?? 'No reference'}
+              </span>
+            </div>
+            
+            {/* 2x2 grid for metadata */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <div className="text-gray-600">Requestor</div>
+                <div className="text-gray-900 font-medium">
+                  {item.requestorName ?? item.requestor ?? '—'}
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-gray-600">Type</div>
+                <div className="text-gray-900 font-medium">
+                  {item.requestType ?? item.type ?? '—'}
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-gray-600">Country</div>
+                <div className="text-gray-900 font-medium">
+                  {item.country ?? '—'}
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-gray-600">Board Date</div>
+                <div className="text-gray-900 font-medium">
+                  {formatDate(item.meetingDate ?? item.boardDate ?? item.MeetingDate)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
+      
+      {/* Drawer for detail view */}
+      <Drawer 
+        isOpen={selectedItem !== null}
+        onClose={() => setSelectedItem(null)}
+      >
+        {selectedItem && (() => {
+          const item = filteredItems.find(it => it.id === selectedItem)
+          if (!item) return <div>Item not found</div>
+          
+          return (
+            <div>
+              <h2 id="drawer-title" className="text-2xl font-bold text-gray-900 mb-6">
+                {item.title ?? item.meetingTitle ?? 'Meeting Request Details'}
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Reference Number</div>
+                  <div className="mt-1 text-lg text-gray-900">{item.referenceNumber ?? item.ReferenceNumber ?? '—'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Requestor</div>
+                  <div className="mt-1 text-lg text-gray-900">{item.requestorName ?? item.requestor ?? '—'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Request Type</div>
+                  <div className="mt-1 text-lg text-gray-900">{item.requestType ?? item.type ?? '—'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Country</div>
+                  <div className="mt-1 text-lg text-gray-900">{item.country ?? '—'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Board Date</div>
+                  <div className="mt-1 text-lg text-gray-900">{formatDate(item.meetingDate ?? item.boardDate ?? item.MeetingDate)}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+      </Drawer>
     </div>
   )
 }
