@@ -11,10 +11,31 @@ import AppShell from './components/shell/AppShell'
 
 function Home() {
   const [open, setOpen] = React.useState(false)
+  const [inputValue, setInputValue] = React.useState('')
   const [searchTerm, setSearchTerm] = React.useState('')
+  const [isSearching, setIsSearching] = React.useState(false)
   const { instance } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const navigate = useNavigate()
+
+  // Debounce search input with 300ms delay
+  React.useEffect(() => {
+    // Set searching state immediately when input changes
+    if (inputValue !== searchTerm) {
+      setIsSearching(true)
+    }
+
+    // Create debounce timer
+    const timer = setTimeout(() => {
+      setSearchTerm(inputValue)
+      setIsSearching(false)
+    }, 300)
+
+    // Cleanup function to cancel timer if user types again
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [inputValue, searchTerm])
 
   async function handleLogin() {
     try {
@@ -35,7 +56,7 @@ function Home() {
   }
 
   const handleSearchChange = (term) => {
-    setSearchTerm(term)
+    setInputValue(term)
   }
 
   return (
@@ -53,7 +74,7 @@ function Home() {
 
       {/* Meeting requests list */}
       <div className="mb-6">
-        <MeetingRequestsList searchTerm={searchTerm} />
+        <MeetingRequestsList searchTerm={searchTerm} isSearching={isSearching} />
       </div>
 
       {/* Drawer overlay */}

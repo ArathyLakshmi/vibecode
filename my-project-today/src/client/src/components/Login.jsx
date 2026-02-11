@@ -12,16 +12,22 @@ export default function Login() {
   const from = (location.state && location.state.from && location.state.from.pathname) || '/'
 
   useEffect(() => {
+    console.debug('Login: useEffect accounts/isAuthenticated', { accounts, isAuthenticated })
     if (accounts && accounts.length > 0) {
+      console.debug('Login: setting active account from accounts[0]')
       instance.setActiveAccount(accounts[0])
       navigate(from, { replace: true })
     } else if (isAuthenticated) {
+      console.debug('Login: isAuthenticated true, navigating to', from)
       navigate(from, { replace: true })
     }
   }, [accounts, instance, isAuthenticated, navigate, from])
 
   const handleSignIn = async () => {
     try {
+      console.debug('Auth: ensuring MSAL is initialized before loginRedirect')
+      // Ensure MSAL is initialized (idempotent operation)
+      await instance.initialize()
       console.debug('Auth: calling instance.loginRedirect', { req: loginRequest })
       await instance.loginRedirect(loginRequest)
     } catch (e) {

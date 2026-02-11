@@ -26,21 +26,22 @@ if (import.meta.env.VITE_TEST_MODE === 'true') {
   console.debug('Auth: running in TEST_MODE, skipping handleRedirectPromise')
   renderApp()
 } else {
-  console.debug('Auth: handling redirect promise from MSAL')
-  pca.handleRedirectPromise()
+  console.debug('Auth: initializing MSAL and handling redirect promise')
+  pca.initialize()
+    .then(() => {
+      console.debug('Auth: MSAL initialized successfully')
+      return pca.handleRedirectPromise()
+    })
     .then((resp) => {
       console.debug('Auth: handleRedirectPromise resolved', { resp })
+      const accounts = pca.getAllAccounts()
+      console.debug('Auth: current MSAL accounts', { accounts })
     })
     .catch((e) => {
-      console.error('Auth: handleRedirectPromise error', e)
+      console.error('Auth: initialization or redirect error', e)
     })
     .finally(() => {
-      try {
-        const accounts = pca.getAllAccounts()
-        console.debug('Auth: current MSAL accounts', { accounts })
-      } catch (e) {
-        console.error('Auth: error while reading accounts', e)
-      }
+      console.debug('Auth: rendering app')
       renderApp()
     })
 }
