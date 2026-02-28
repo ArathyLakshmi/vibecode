@@ -1,12 +1,26 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
+using VibeCode.Server.Services;
 using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
+
+// Add CORS policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "http://localhost:5000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
 
 // Optional JWT / OpenID Connect authentication configuration
 var authority = builder.Configuration["Authentication:Authority"];
@@ -28,16 +42,33 @@ if (!string.IsNullOrWhiteSpace(authority) && !string.IsNullOrWhiteSpace(audience
 var dbPath = Path.Combine(builder.Environment.ContentRootPath, "meetingrequests.db");
 builder.Services.AddDbContext<MeetingRequestsDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
 
+// Register file attachment services
+builder.Services.AddScoped<FileValidationService>();
+builder.Services.AddScoped<FileStorageService>();
+
+// Configure file upload limits
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+});
+
 var app = builder.Build();
 
-// Ensure database exists
+// Ensure database exists and apply migrations (skip for in-memory databases)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<MeetingRequestsDbContext>();
-    db.Database.EnsureCreated();
+    // Only run migrations for relational databases (not in-memory)
+    if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+    {
+        db.Database.Migrate();
+    }
 }
 
 app.UseRouting();
+
+// Enable CORS
+app.UseCors("AllowFrontend");
 
 // Allow popups opened by the app to communicate back to the opener when navigating
 // to external identity providers (MSAL popup flows). Without this header, some

@@ -14,6 +14,7 @@
     "@azure/msal-react": "^3.0.25",
     "@fluentui/react-components": "^9.72.11",
     "@fluentui/react-icons": "^2.0.318",
+    "jspdf": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.11.2"
