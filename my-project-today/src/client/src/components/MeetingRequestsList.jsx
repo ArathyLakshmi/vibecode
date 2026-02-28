@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import Drawer from './Drawer'
+import { useNavigate } from 'react-router-dom'
 import { useMsal } from '@azure/msal-react'
 import { useRoles, hasAnyRole } from '../auth/useRoles'
+import jsPDF from 'jspdf'
 import {
   FluentProvider,
   teamsLightTheme,
@@ -9,8 +11,8 @@ import {
   Input,
   Textarea,
   Spinner,
-  Pivot,
-  PivotItem
+  TabList,
+  Tab
 } from '@fluentui/react-components'
 import { 
   DocumentBulletList24Regular, 
@@ -24,7 +26,9 @@ import {
   ChevronUp20Regular,
   DismissCircle24Regular,
   ArrowDownload20Regular,
-  Attach20Regular
+  Attach20Regular,
+  Eye20Regular,
+  Edit20Regular
 } from '@fluentui/react-icons'
 
 /**
@@ -88,6 +92,11 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
   const [deletingRequest, setDeletingRequest] = useState(false)
   const [deleteSuccessMessage, setDeleteSuccessMessage] = useState(false)
   const [statusFilter, setStatusFilter] = useState(null)
+  const [isFiltering, setIsFiltering] = useState(false)
+  const [internalRefresh, setInternalRefresh] = useState(0) // Counter to trigger refresh without changing filters
+  const [showingAgenda, setShowingAgenda] = useState(false)
+  const [agendaData, setAgendaData] = useState({ items: [], notes: '' })
+  const [loadingAgenda, setLoadingAgenda] = useState(false)
   
   /**
    * Filter mode state (Feature: 1-requestor-filter)
@@ -99,19 +108,45 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
    * 2. Pagination resets to page 1
    * 3. Items array is cleared and reloaded
    * 4. useEffect dependencies trigger fresh data load
+   * 
+   * Uses Fluent UI v9 TabList component (not Pivot - that's v8)
    */
-  const [filterMode, setFilterMode] = useState('my-requests')  // NEW: Filter between "my-requests" and "all-requests"
+  const [filterMode, setFilterMode] = useState('all-requests')  // Changed to show all requests by default
   const [attachments, setAttachments] = useState([])
   const [loadingAttachments, setLoadingAttachments] = useState(false)
   const [showAttachments, setShowAttachments] = useState(true)
   const cancelReasonRef = React.useRef(null)
   const loadMoreRef = React.useRef(null)
+  const navigate = useNavigate()
   const { accounts } = useMsal()
   const userRoles = useRoles()
   
-  // Extract logged-in user's email from MSAL authentication context
+  // Extract logged-in user's name from MSAL authentication context
   // Used for filtering "My Requests" in filterMode state
-  const userEmail = accounts && accounts.length > 0 ? accounts[0].username : ''
+  // Memoized to prevent unnecessary re-renders when accounts array reference changes
+  const userName = React.useMemo(() => {
+    return accounts && accounts.length > 0 ? (accounts[0].name || accounts[0].username) : ''
+  }, [accounts])
+  
+  // Debug: Log user info on component mount and when it changes
+  React.useEffect(() => {
+    const userEmail = accounts && accounts.length > 0 ? (accounts[0].username || accounts[0].email || '').toLowerCase() : ''
+    const isSecAdmin = userEmail === 'secadmin@arathylgmail.onmicrosoft.com'
+    const isEdOffice = userEmail === 'edoffice@arathylgmail.onmicrosoft.com'
+    console.log('User authentication state:', {
+      hasAccounts: accounts && accounts.length > 0,
+      userName: userName,
+      userEmail: userEmail,
+      accountsCount: accounts ? accounts.length : 0,
+      userRoles: userRoles,
+      isSecAdmin: isSecAdmin,
+      isEdOffice: isEdOffice,
+      canApprove: hasAnyRole(userRoles, ['SecAdmin']) || isSecAdmin,
+      canConfirm: hasAnyRole(userRoles, ['EdOffice', 'SecAdmin', 'ManagementOffice']) || isSecAdmin || isEdOffice,
+      canAnnounce: hasAnyRole(userRoles, ['SecAdmin']) || isSecAdmin,
+      fullAccount: accounts && accounts.length > 0 ? accounts[0] : null
+    })
+  }, [accounts, userName, userRoles])
 
   /**
    * Load initial data with filter support (Feature: 1-requestor-filter)
@@ -132,21 +167,34 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
   React.useEffect(() => {
     let cancelled = false
     async function load() {
-      setLoading(true)
+      // Only show full loading spinner on initial load, not on filter changes
+      const isInitialLoad = items.length === 0
+      if (isInitialLoad) {
+        setLoading(true)
+      } else {
+        setIsFiltering(true)
+      }
       setPage(1)
       setHasMore(true)
+      setError(null) // Clear any previous errors
       try {
         // Build query params
         const params = new URLSearchParams({ page: '1', pageSize: '20' })
         
-        // Add requestorEmail filter for "my-requests" mode
-        if (filterMode === 'my-requests' && userEmail) {
-          params.append('requestorEmail', userEmail)
+        // Add requestor filter for "my-requests" mode (only if user is authenticated)
+        if (filterMode === 'my-requests' && userName) {
+          console.log('Filtering by requestor:', userName)
+          params.append('requestor', userName)
+        } else if (filterMode === 'my-requests' && !userName) {
+          console.log('My Requests mode but no userName available')
         }
         
-        const res = await fetch(`/api/meetingrequests?${params}`)
+        const url = `/api/meetingrequests?${params}`
+        console.log('Fetching:', url)
+        const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
+        console.log('Received data:', data)
         
         if (!cancelled) {
           // Handle new paginated response format
@@ -157,21 +205,28 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
             setPage(2) // Next page to load
           } else {
             // Fallback for old format (backwards compatibility)
-            const list = Array.isArray(data) ? data : (data.value || data)
+            const list = Array.isArray(data) ? data : (Array.isArray(data.value) ? data.value : [])
             setItems(list)
             setCount(Array.isArray(list) ? list.length : 0)
             setHasMore(false)
           }
+          setError(null) // Clear error on success
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || String(err))
+        if (!cancelled) {
+          console.error('Error loading meeting requests:', err)
+          setError(err.message || String(err))
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setIsFiltering(false)
+        }
       }
     }
     load()
     return () => { cancelled = true }
-  }, [refreshTrigger, filterMode, userEmail])
+  }, [refreshTrigger, filterMode, userName, internalRefresh])
 
   // Load more data for infinite scroll
   const loadMore = React.useCallback(async () => {
@@ -182,12 +237,15 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       // Build query params
       const params = new URLSearchParams({ page: String(page), pageSize: '20' })
       
-      // Add requestorEmail filter for "my-requests" mode
-      if (filterMode === 'my-requests' && userEmail) {
-        params.append('requestorEmail', userEmail)
+      // Add requestor filter for "my-requests" mode (only if user is authenticated)
+      if (filterMode === 'my-requests' && userName) {
+        console.log('Loading more with requestor:', userName)
+        params.append('requestor', userName)
       }
       
-      const res = await fetch(`/api/meetingrequests?${params}`)
+      const url = `/api/meetingrequests?${params}`
+      console.log('Loading more from:', url)
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       
@@ -202,7 +260,7 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
     } finally {
       setLoadingMore(false)
     }
-  }, [page, hasMore, loading, loadingMore, filterMode, userEmail])
+  }, [page, hasMore, loading, loadingMore, filterMode, userName])
 
   // Intersection Observer for infinite scroll
   React.useEffect(() => {
@@ -231,6 +289,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       setShowAttachments(true)
       setCancelSuccessMessage(false)
       setAttachments([])
+      setShowingAgenda(false)
+      setAgendaData({ items: [], notes: '' })
       return
     }
     
@@ -303,19 +363,143 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
     }
   }, [showCancelDialog])
 
-  // Check if user can approve
-  const canApprove = hasAnyRole(userRoles, ['SECADmin']) || (userEmail && userEmail.toLowerCase() === 'secadmin@arathylgmail.onmicrosoft.com')
+  // Get user email for permission checks (memoized to prevent unnecessary recalculations)
+  const userEmail = React.useMemo(() => {
+    return accounts && accounts.length > 0 ? (accounts[0].username || accounts[0].email || '').toLowerCase() : ''
+  }, [accounts])
+  
+  const isSecAdmin = React.useMemo(() => {
+    return userEmail === 'secadmin@arathylgmail.onmicrosoft.com'
+  }, [userEmail])
+  
+  const isEdOffice = React.useMemo(() => {
+    return userEmail === 'edoffice@arathylgmail.onmicrosoft.com'
+  }, [userEmail])
+  
+  // Check if user can approve (SecAdmin role or specific email)
+  const canApprove = React.useMemo(() => {
+    return hasAnyRole(userRoles, ['SecAdmin']) || isSecAdmin
+  }, [userRoles, isSecAdmin])
 
-  // Check if user can confirm
-  const canConfirm = hasAnyRole(userRoles, ['EdOffice', 'SecAdmin', 'ManagementOffice']) || 
-    (userEmail && (
-      userEmail.toLowerCase() === 'edoffice@arathylgmail.onmicrosoft.com' || 
-      userEmail.toLowerCase() === 'managementoffice@arathylgmail.onmicrosoft.com' || 
-      userEmail.toLowerCase() === 'secadmin@arathylgmail.onmicrosoft.com'
-    ))
+  // Check if user can confirm (EdOffice, SecAdmin, ManagementOffice roles or specific emails)
+  const canConfirm = React.useMemo(() => {
+    return hasAnyRole(userRoles, ['EdOffice', 'SecAdmin', 'ManagementOffice']) || isSecAdmin || isEdOffice
+  }, [userRoles, isSecAdmin, isEdOffice])
 
-  // Check if user can announce
-  const canAnnounce = hasAnyRole(userRoles, ['SecAdmin']) || (userEmail && userEmail.toLowerCase() === 'secadmin@arathylgmail.onmicrosoft.com')
+  // Check if user can announce (SecAdmin role or specific email)
+  const canAnnounce = React.useMemo(() => {
+    return hasAnyRole(userRoles, ['SecAdmin']) || isSecAdmin
+  }, [userRoles, isSecAdmin])
+
+  // Handle view agenda - show inline in drawer
+  const handleViewAgenda = async (meetingId) => {
+    setShowingAgenda(true)
+    setLoadingAgenda(true)
+    try {
+      const res = await fetch(`/api/meetingrequests/${meetingId}/agenda`)
+      if (res.ok) {
+        const data = await res.json()
+        setAgendaData(data)
+      } else {
+        setAgendaData({ items: [], notes: '' })
+      }
+    } catch (err) {
+      console.error('Error loading agenda:', err)
+      setAgendaData({ items: [], notes: '' })
+    } finally {
+      setLoadingAgenda(false)
+    }
+  }
+
+  // Handle back from agenda view
+  const handleBackFromAgenda = () => {
+    setShowingAgenda(false)
+    setAgendaData({ items: [], notes: '' })
+  }
+
+  // Handle PDF download for agenda
+  const handleDownloadAgendaPDF = () => {
+    if (!selectedItemDetails?.meetingRequest) return
+    
+    const meeting = selectedItemDetails.meetingRequest
+    const doc = new jsPDF()
+    
+    // Add blue header background
+    doc.setFillColor(98, 100, 167) // #6264A7
+    doc.rect(0, 0, 210, 40, 'F')
+    
+    // Header text in white
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.text('Meeting Agenda', 20, 20)
+    
+    doc.setFontSize(11)
+    doc.text(`${meeting.title || meeting.meetingTitle || 'Untitled'}`, 20, 30)
+    
+    // Reset text color to black for body
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(10)
+    doc.text(`Reference: ${meeting.referenceNumber || meeting.ReferenceNumber || 'N/A'}`, 20, 50)
+    doc.text(`Date: ${new Date(meeting.meetingDate || meeting.MeetingDate).toLocaleDateString()}`, 20, 56)
+    
+    let yPos = 70
+    doc.setFontSize(14)
+    doc.setFont(undefined, 'bold')
+    doc.text('Agenda Items:', 20, yPos)
+    doc.setFont(undefined, 'normal')
+    
+    yPos += 10
+    doc.setFontSize(11)
+    agendaData.items.forEach((item, index) => {
+      if (yPos > 270) {
+        doc.addPage()
+        yPos = 20
+      }
+      doc.setFont(undefined, 'bold')
+      doc.text(`${index + 1}. ${item.title}`, 25, yPos)
+      doc.setFont(undefined, 'normal')
+      yPos += 7
+      if (item.description) {
+        const lines = doc.splitTextToSize(item.description, 160)
+        doc.setFontSize(9)
+        lines.forEach(line => {
+          if (yPos > 270) {
+            doc.addPage()
+            yPos = 20
+          }
+          doc.text(line, 30, yPos)
+          yPos += 5
+        })
+        doc.setFontSize(11)
+        yPos += 3
+      }
+    })
+    
+    if (agendaData.notes) {
+      yPos += 10
+      if (yPos > 270) {
+        doc.addPage()
+        yPos = 20
+      }
+      doc.setFontSize(12)
+      doc.setFont(undefined, 'bold')
+      doc.text('General Notes:', 20, yPos)
+      doc.setFont(undefined, 'normal')
+      yPos += 7
+      doc.setFontSize(10)
+      const noteLines = doc.splitTextToSize(agendaData.notes, 170)
+      noteLines.forEach(line => {
+        if (yPos > 270) {
+          doc.addPage()
+          yPos = 20
+        }
+        doc.text(line, 20, yPos)
+        yPos += 5
+      })
+    }
+    
+    doc.save(`agenda-${meeting.referenceNumber || 'meeting'}.pdf`)
+  }
 
   // T060: Download attachment function with blob handling
   const downloadAttachment = async (attachmentId, fileName) => {
@@ -335,6 +519,49 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
     } catch (err) {
       console.error('Error downloading attachment:', err)
       alert('Failed to download file')
+    }
+  }
+
+  // Preview attachment function - opens in new tab for previewable files
+  const previewAttachment = async (attachmentId, fileName, contentType) => {
+    try {
+      // Check if file type is previewable in browser
+      const previewableTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'text/plain',
+        'text/html',
+        'text/csv'
+      ]
+      
+      const isPreviewable = previewableTypes.includes(contentType.toLowerCase())
+      
+      if (!isPreviewable) {
+        // Fall back to download for non-previewable files
+        await downloadAttachment(attachmentId, fileName)
+        return
+      }
+      
+      const res = await fetch(`/api/meetingrequests/${selectedItem}/attachments/${attachmentId}`)
+      if (!res.ok) throw new Error('Failed to load file')
+      
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      
+      // Open in new tab
+      window.open(url, '_blank')
+      
+      // Clean up after a delay (user might still be viewing)
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+      }, 60000) // 60 seconds
+    } catch (err) {
+      console.error('Error previewing attachment:', err)
+      alert('Failed to preview file')
     }
   }
 
@@ -370,13 +597,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         setSelectedItemDetails(data)
       }
 
-      // Refresh the list
-      const listRes = await fetch('/api/meetingrequests')
-      if (listRes.ok) {
-        const data = await listRes.json()
-        const list = Array.isArray(data) ? data : (data.value || data)
-        setItems(list)
-      }
+      // Trigger refresh without changing filters
+      setInternalRefresh(prev => prev + 1)
 
       // Show success message
       setApproveSuccessMessage(true)
@@ -414,13 +636,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         setSelectedItemDetails(data)
       }
 
-      // Refresh the list
-      const listRes = await fetch('/api/meetingrequests')
-      if (listRes.ok) {
-        const data = await listRes.json()
-        const list = Array.isArray(data) ? data : (data.value || data)
-        setItems(list)
-      }
+      // Trigger refresh without changing filters
+      setInternalRefresh(prev => prev + 1)
 
       // Show success message
       setConfirmSuccessMessage(true)
@@ -458,13 +675,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         setSelectedItemDetails(data)
       }
 
-      // Refresh the list
-      const listRes = await fetch('/api/meetingrequests')
-      if (listRes.ok) {
-        const data = await listRes.json()
-        const list = Array.isArray(data) ? data : (data.value || data)
-        setItems(list)
-      }
+      // Trigger refresh without changing filters
+      setInternalRefresh(prev => prev + 1)
 
       // Show success message
       setAnnounceSuccessMessage(true)
@@ -498,13 +710,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       setSelectedItem(null)
       setSelectedItemDetails(null)
 
-      // Refresh the list
-      const listRes = await fetch('/api/meetingrequests')
-      if (listRes.ok) {
-        const data = await listRes.json()
-        const list = Array.isArray(data) ? data : (data.value || data)
-        setItems(list)
-      }
+      // Trigger refresh without changing filters
+      setInternalRefresh(prev => prev + 1)
 
       // Show success message
       setDeleteSuccessMessage(true)
@@ -543,13 +750,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         setSelectedItemDetails(data)
       }
 
-      // Refresh the list
-      const listRes = await fetch('/api/meetingrequests')
-      if (listRes.ok) {
-        const listData = await listRes.json()
-        const list = Array.isArray(listData) ? listData : (listData.value || listData)
-        setItems(list)
-      }
+      // Trigger refresh without changing filters
+      setInternalRefresh(prev => prev + 1)
 
       setShowCancelDialog(false)
       setCancelReason('')
@@ -566,13 +768,6 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
     }
   }
 
-  if (loading) return <div className="p-4">Loading meeting requests…</div>
-  if (error) return <div className="p-4 text-red-600">Error: {error}</div>
-
-  if (!items || items.length === 0) {
-    return <div className="p-4">No meeting requests found.</div>
-  }
-
   // Filter items based on search term
   const searchFilteredItems = items.filter(item => matchesSearch(item, searchTerm))
   
@@ -584,18 +779,8 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       })
     : searchFilteredItems
 
-  // Show "No results found" if search returns no matches
-  if (filteredItems.length === 0) {
-    return (
-      <div className="p-4" data-testid="meeting-requests-list">
-        <div className="text-center py-8 text-gray-500" data-testid="no-results-message">
-          No results found for "{searchTerm}"
-        </div>
-      </div>
-    )
-  }
-
   return (
+    <FluentProvider theme={teamsLightTheme}>
     <div className="p-4" data-testid="meeting-requests-list">
       {/* Loading indicator for search */}
       {isSearching && (
@@ -609,31 +794,94 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       )}
       
       {/* Filter Mode Toggle */}
-      <div className="mb-4 bg-white rounded-lg shadow p-4" data-testid="filter-toggle">
-        <Pivot
-          aria-label="Filter by requestor"
-          selectedKey={filterMode}
-          onTabSelect={(event, data) => {
-            setFilterMode(data.value)
-            setPage(1)
-            setItems([])
-          }}
-        >
-          <PivotItem 
-            headerText="My Requests" 
-            itemKey="my-requests"
-            value="my-requests"
-            data-testid="filter-my-requests"
-          />
-          <PivotItem 
-            headerText="All Requests" 
-            itemKey="all-requests"
-            value="all-requests"
-            data-testid="filter-all-requests"
-          />
-        </Pivot>
+      <div className="mb-6 bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-md border border-gray-200 overflow-hidden" data-testid="filter-toggle">
+        <div className="bg-[#6264A7] px-4 py-3 flex items-center gap-2">
+          <Person20Regular className="text-white" />
+          <span className="text-sm font-semibold text-white">Filter Requests</span>
+        </div>
+        <div className="p-4">
+          <TabList
+            selectedValue={filterMode}
+            onTabSelect={(event, data) => {
+              console.log('Filter mode changed:', data.value)
+              setFilterMode(data.value)
+            }}
+            size="large"
+            appearance="subtle"
+          >
+            <Tab 
+              value="my-requests"
+              data-testid="filter-my-requests"
+              icon={<Person20Regular />}
+            >
+              My Requests
+            </Tab>
+            <Tab 
+              value="all-requests"
+              data-testid="filter-all-requests"
+              icon={<DocumentBulletList24Regular />}
+            >
+              All Requests
+            </Tab>
+          </TabList>
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+            <span className="text-xs text-blue-800 font-medium">
+              {filterMode === 'my-requests' 
+                ? (userName 
+                  ? `Viewing your requests (${userName})` 
+                  : 'Sign in to view your requests')
+                : 'Viewing all team requests'}
+            </span>
+            {isFiltering && (
+              <div className="ml-auto flex items-center gap-1 text-xs text-blue-600">
+                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Updating...
+              </div>
+            )}
+          </div>
+          {filterMode === 'my-requests' && !userName && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <span className="text-xs text-amber-800">
+                ⚠️ You are not signed in. Showing all requests instead.
+              </span>
+            </div>
+          )}
+        </div>
       </div>
-      
+
+      {loading && <div className="text-center py-8">Loading meeting requests…</div>}
+      {error && <div className="text-red-600 text-center py-8">Error: {error}</div>}
+      {!loading && !error && (!items || items.length === 0) && (
+        <div className="text-center py-12">
+          <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+            <DocumentBulletList24Regular className="mx-auto mb-4 text-gray-400" style={{ width: '48px', height: '48px' }} />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {filterMode === 'my-requests' ? 'No requests from you yet' : 'No meeting requests found'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {filterMode === 'my-requests' 
+                ? 'You haven\'t created any meeting requests yet. Click "Create Request" to get started.'
+                : 'There are no meeting requests in the system yet.'}
+            </p>
+            {filterMode === 'my-requests' && userName && (
+              <p className="text-xs text-gray-500 mt-2 px-4 py-2 bg-gray-50 rounded border border-gray-200">
+                Filtering by: {userName}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {!loading && !error && items && items.length > 0 && filteredItems.length === 0 && (
+        <div className="text-center py-8 text-gray-500" data-testid="no-results-message">
+          No results found for "{searchTerm}"
+        </div>
+      )}
+      {!loading && !error && items && items.length > 0 && filteredItems.length > 0 && (
+      <>
       {/* Status Summary */}
       <div className="mb-6 bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between mb-3">
@@ -666,22 +914,22 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
             })
             
             const statusConfig = [
-              { key: 'draft', label: 'Draft', color: 'bg-gray-100 text-gray-800 border-gray-300' },
-              { key: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-              { key: 'approved', label: 'Approved', color: 'bg-green-100 text-green-800 border-green-300' },
-              { key: 'confirmed', label: 'Confirmed', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-              { key: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800 border-red-300' },
-              { key: 'announced', label: 'Announced', color: 'bg-purple-100 text-purple-800 border-purple-300' }
+              { key: 'draft', label: 'Draft', color: 'bg-gray-100 text-gray-800 border-gray-300', hoverColor: 'hover:bg-gray-200' },
+              { key: 'pending', label: 'Pending', color: 'bg-orange-100 text-orange-800 border-orange-300', hoverColor: 'hover:bg-orange-200' },
+              { key: 'approved', label: 'Approved', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', hoverColor: 'hover:bg-emerald-200' },
+              { key: 'confirmed', label: 'Confirmed', color: 'bg-sky-100 text-sky-800 border-sky-300', hoverColor: 'hover:bg-sky-200' },
+              { key: 'cancelled', label: 'Cancelled', color: 'bg-rose-100 text-rose-800 border-rose-300', hoverColor: 'hover:bg-rose-200' },
+              { key: 'announced', label: 'Announced', color: 'bg-violet-100 text-violet-800 border-violet-300', hoverColor: 'hover:bg-violet-200' }
             ]
             
-            return statusConfig.map(({ key, label, color }) => {
+            return statusConfig.map(({ key, label, color, hoverColor }) => {
               const isActive = statusFilter === key
               return (
                 <button
                   key={key}
                   onClick={() => setStatusFilter(isActive ? null : key)}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all cursor-pointer hover:scale-105 ${
-                    isActive ? color + ' ring-2 ring-offset-2 ring-indigo-600 shadow-lg' : color + ' hover:shadow-md'
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all cursor-pointer hover:scale-105 ${color} ${
+                    isActive ? 'ring-2 ring-offset-2 ring-[#6264A7] shadow-lg' : `${hoverColor} hover:shadow-md`
                   }`}
                   aria-label={`Filter by ${label} status`}
                   aria-pressed={isActive}
@@ -700,7 +948,7 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       </div>
       
       {/* Table View */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className={`bg-white rounded-lg shadow overflow-hidden transition-opacity duration-300 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-[#6264A7]">
@@ -723,6 +971,11 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                 <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
                   Status
                 </th>
+                {onEdit && (
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-semibold text-white uppercase tracking-wider">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -775,6 +1028,21 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                       )
                     })()}
                   </td>
+                  {onEdit && (
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEdit(item)
+                        }}
+                        className="inline-flex items-center justify-center p-2 text-[#6264A7] hover:bg-[#6264A7] hover:text-white rounded-lg transition-colors"
+                        title="Edit request"
+                        aria-label="Edit request"
+                      >
+                        <Edit20Regular />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -800,6 +1068,28 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
       </div>
       
       {/* Drawer for detail view */}
+      {selectedItem && (() => {
+        const status = (selectedItemDetails?.meetingRequest?.status ?? selectedItemDetails?.meetingRequest?.Status ?? '').toLowerCase()
+        const showApprove = canApprove && selectedItemDetails?.meetingRequest && status !== 'approved' && status !== 'confirmed' && status !== 'cancelled' && status !== 'announced' && status !== 'draft'
+        const showConfirm = canConfirm && selectedItemDetails?.meetingRequest && status !== 'confirmed' && status !== 'cancelled' && status !== 'announced' && status !== 'draft'
+        const showAnnounce = canAnnounce && selectedItemDetails?.meetingRequest && status === 'confirmed'
+        const showViewAgenda = selectedItemDetails?.meetingRequest && (status === 'confirmed' || status === 'announced')
+        
+        console.log('Button visibility debug:', {
+          status,
+          rawStatus: selectedItemDetails?.meetingRequest?.status,
+          rawStatusUpper: selectedItemDetails?.meetingRequest?.Status,
+          canApprove,
+          canConfirm,
+          canAnnounce,
+          showApprove,
+          showConfirm,
+          showAnnounce,
+          showViewAgenda
+        })
+        
+        return null // This is just for debugging
+      })()}
       <Drawer 
         isOpen={selectedItem !== null}
         onClose={() => setSelectedItem(null)}
@@ -811,6 +1101,7 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
             onEdit(item) // Open edit drawer
           }
         } : null}
+        onViewAgenda={!showingAgenda && selectedItemDetails?.meetingRequest && ((selectedItemDetails.meetingRequest.status ?? selectedItemDetails.meetingRequest.Status ?? '').toLowerCase() === 'confirmed' || (selectedItemDetails.meetingRequest.status ?? selectedItemDetails.meetingRequest.Status ?? '').toLowerCase() === 'announced') ? () => handleViewAgenda(selectedItem) : null}
         onCancel={selectedItemDetails?.meetingRequest && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'cancelled' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'draft' ? handleCancelRequest : null}
         onApprove={canApprove && selectedItemDetails?.meetingRequest && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'approved' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'confirmed' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'cancelled' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'announced' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'draft' ? handleApproveRequest : null}
         onConfirm={canConfirm && selectedItemDetails?.meetingRequest && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'confirmed' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'cancelled' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'announced' && selectedItemDetails.meetingRequest.status?.toLowerCase() !== 'draft' ? handleConfirmRequest : null}
@@ -824,6 +1115,87 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
           const item = selectedItemDetails.meetingRequest
           const auditLogs = selectedItemDetails.auditLogs || []
           if (!item) return <div className="p-4">Item not found</div>
+          
+          // Show agenda view if requested
+          if (showingAgenda) {
+            return (
+              <FluentProvider theme={teamsLightTheme}>
+                <div className="mb-4">
+                  <button
+                    onClick={handleBackFromAgenda}
+                    className="flex items-center gap-2 text-[#6264A7] hover:text-[#4a4c85] font-medium text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Meeting Details
+                  </button>
+                </div>
+
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      {item.title || item.meetingTitle || 'Meeting Agenda'}
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {item.referenceNumber || item.ReferenceNumber} • {new Date(item.meetingDate || item.MeetingDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleDownloadAgendaPDF}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#6264A7] text-white rounded hover:bg-[#4a4c85] transition-colors text-sm font-medium"
+                  >
+                    <ArrowDownload20Regular />
+                    Download PDF
+                  </button>
+                </div>
+
+                {loadingAgenda ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner size="medium" label="Loading agenda..." />
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Agenda Items</h3>
+                      {agendaData.items.length === 0 ? (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-sm text-gray-600">No agenda items yet.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {agendaData.items.map((agendaItem, index) => (
+                            <div key={agendaItem.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="flex items-start gap-3">
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#6264A7] text-white text-xs font-semibold flex-shrink-0">
+                                  {index + 1}
+                                </span>
+                                <div className="flex-1">
+                                  <h4 className="font-medium text-gray-900">{agendaItem.title}</h4>
+                                  {agendaItem.description && (
+                                    <p className="text-sm text-gray-600 mt-1">{agendaItem.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {agendaData.notes && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">General Notes</h3>
+                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{agendaData.notes}</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </FluentProvider>
+            )
+          }
           
           return (
             <FluentProvider theme={teamsLightTheme}>
@@ -919,13 +1291,13 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                             className="h-full bg-[#6264A7] transition-all duration-300"
                             style={{ 
                               width: (() => {
-                                const status = (item.status ?? item.Status ?? 'Pending').toLowerCase()
-                                if (status.includes('draft')) return '0%'
-                                if (status.includes('pending')) return '25%'
-                                if (status.includes('approved')) return '50%'
-                                if (status.includes('confirmed')) return '75%'
-                                if (status.includes('announced')) return '100%'
-                                return '25%' // default to pending
+                                const status = (item.status ?? item.Status ?? 'Draft').toLowerCase()
+                                if (status === 'draft') return '0%'
+                                if (status === 'pending') return '25%'
+                                if (status === 'approved') return '50%'
+                                if (status === 'confirmed') return '75%'
+                                if (status === 'announced') return '100%'
+                                return '0%' // default to draft
                               })()
                             }}
                           />
@@ -933,18 +1305,18 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                         
                         {/* Stages */}
                         {[
-                          { key: 'drafted', label: 'Drafted', icon: DocumentBulletList24Regular },
+                          { key: 'draft', label: 'Draft', icon: DocumentBulletList24Regular },
                           { key: 'pending', label: 'Pending', icon: Clock24Regular },
                           { key: 'approved', label: 'Approved', icon: CheckmarkCircle24Regular },
                           { key: 'confirmed', label: 'Confirmed', icon: CalendarCheckmark24Regular },
                           { key: 'announced', label: 'Announced', icon: Megaphone24Regular }
                         ].map((stage, index) => {
-                          const currentStatus = (item.status ?? item.Status ?? 'Pending').toLowerCase()
-                          const isActive = currentStatus.includes(stage.key)
+                          const currentStatus = (item.status ?? item.Status ?? 'Draft').toLowerCase()
+                          const isActive = currentStatus === stage.key
                           const isPassed = (() => {
-                            const stages = ['drafted', 'pending', 'approved', 'confirmed', 'announced']
-                            const currentIndex = stages.findIndex(s => currentStatus.includes(s))
-                            return currentIndex > index || (currentIndex === -1 && stage.key === 'pending')
+                            const stages = ['draft', 'pending', 'approved', 'confirmed', 'announced']
+                            const currentIndex = stages.indexOf(currentStatus)
+                            return currentIndex > index
                           })()
                           const Icon = stage.icon
                           
@@ -1080,15 +1452,15 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                     className="flex items-center justify-between cursor-pointer mb-4 hover:bg-gray-50 p-2 rounded -m-2"
                     onClick={() => setShowAttachments(!showAttachments)}
                   >
-                    <div className="flex items-center gap-2">
-                      <Attach20Regular className="text-gray-700" />
-                      <h3 className="text-sm font-semibold text-gray-700">Attachments</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Attach20Regular />
+                      Attachments
                       {attachments.length > 0 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <span className="ml-2 px-2 py-0.5 bg-[#6264A7] text-white text-xs rounded-full">
                           {attachments.length}
                         </span>
                       )}
-                    </div>
+                    </h3>
                     {showAttachments ? <ChevronUp20Regular /> : <ChevronDown20Regular />}
                   </div>
                   
@@ -1122,13 +1494,22 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
                                 </div>
                               </div>
                             </div>
-                            <button
-                              onClick={() => downloadAttachment(attachment.id, attachment.fileName)}
-                              className="ml-3 p-2 text-[#6264A7] hover:bg-[#6264A7] hover:text-white rounded transition-colors flex-shrink-0"
-                              title="Download file"
-                            >
-                              <ArrowDownload20Regular />
-                            </button>
+                            <div className="flex gap-1 ml-3 flex-shrink-0">
+                              <button
+                                onClick={() => previewAttachment(attachment.id, attachment.fileName, attachment.contentType)}
+                                className="p-2 text-[#6264A7] hover:bg-[#6264A7] hover:text-white rounded transition-colors"
+                                title="Preview file"
+                              >
+                                <Eye20Regular />
+                              </button>
+                              <button
+                                onClick={() => downloadAttachment(attachment.id, attachment.fileName)}
+                                className="p-2 text-[#6264A7] hover:bg-[#6264A7] hover:text-white rounded transition-colors"
+                                title="Download file"
+                              >
+                                <ArrowDownload20Regular />
+                              </button>
+                            </div>
                           </div>
                         ))
                       )}
@@ -1319,6 +1700,9 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         </>
       )}
 
+      </>
+      )}
+
       {showDeleteDialog && (
         <>
           {/* Backdrop */}
@@ -1357,6 +1741,7 @@ export default function MeetingRequestsList({ searchTerm = '', isSearching = fal
         </>
       )}
     </div>
+    </FluentProvider>
   )
 }
 
