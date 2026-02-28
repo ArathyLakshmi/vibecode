@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Search API Contract",
+  "description": "API contract for meeting requests search endpoint (future server-side implementation)",
+  "version": "1.0.0",
+  "baseUrl": "/api/meetingrequests",
+  
+  "endpoints": [
+    {
+      "path": "/api/meetingrequests",
+      "method": "GET",
+      "description": "Search and filter meeting requests",
+      "queryParameters": {
+        "search": {
+          "type": "string",
+          "required": false,
+          "minLength": 0,
+          "maxLength": 500,
+          "description": "Search term to filter meeting requests. Matches across all text fields (case-insensitive, partial match).",
+          "example": "board"
+        },
+        "page": {
+          "type": "integer",
+          "required": false,
+          "minimum": 1,
+          "default": 1,
+          "description": "Page number for pagination (future enhancement)"
+        },
+        "pageSize": {
+          "type": "integer",
+          "required": false,
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50,
+          "description": "Number of results per page (future enhancement)"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful search",
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/MeetingRequest"
+                },
+                "description": "Array of meeting requests matching the search criteria"
+              },
+              "count": {
+                "type": "integer",
+                "description": "Total number of matching results"
+              },
+              "page": {
+                "type": "integer",
+                "description": "Current page number (future)"
+              },
+              "pageSize": {
+                "type": "integer",
+                "description": "Results per page (future)"
+              }
+            },
+            "required": ["value", "count"]
+          },
+          "example": {
+            "value": [
+              {
+                "id": 1,
+                "referenceNumber": "REF-2026-001",
+                "requestorName": "John Doe",
+                "requestType": "Board Meeting",
+                "country": "USA",
+                "title": "Q1 Board Strategic Review",
+                "meetingDate": "2026-03-15T00:00:00Z"
+              }
+            ],
+            "count": 1
+          }
+        },
+        "400": {
+          "description": "Bad request - invalid query parameters",
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/definitions/ErrorResponse"
+          },
+          "example": {
+            "error": "Search term exceeds maximum length of 500 characters"
+          }
+        },
+        "401": {
+          "description": "Unauthorized - authentication required",
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/definitions/ErrorResponse"
+          }
+        },
+        "500": {
+          "description": "Internal server error",
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/definitions/ErrorResponse"
+          }
+        }
+      },
+      "authentication": {
+        "required": true,
+        "type": "Bearer JWT",
+        "description": "Requires valid Azure AD JWT token"
+      },
+      "rateLimiting": {
+        "enabled": false,
+        "note": "May be added in future if needed"
+      }
+    }
+  ],
+  
+  "definitions": {
+    "MeetingRequest": {
+      "type": "object",
+      "description": "Meeting request entity matching existing backend model",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Unique identifier"
+        },
+        "referenceNumber": {
+          "type": "string",
+          "description": "Meeting request reference number",
+          "example": "REF-2026-001"
+        },
+        "requestorName": {
+          "type": "string",
+          "description": "Name of the person who created the request"
+        },
+        "requestorEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Email of the requestor"
+        },
+        "requestType": {
+          "type": "string",
+          "description": "Type of meeting request"
+        },
+        "country": {
+          "type": "string",
+          "description": "Country associated with the request"
+        },
+        "title": {
+          "type": "string",
+          "description": "Meeting title"
+        },
+        "meetingDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Scheduled meeting date"
+        }
+      },
+      "required": ["id", "referenceNumber", "requestorName", "title"]
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "Human-readable error message"
+        },
+        "code": {
+          "type": "string",
+          "description": "Machine-readable error code (optional)"
+        }
+      },
+      "required": ["error"]
+    }
+  },
+  
+  "searchBehavior": {
+    "caseInsensitive": true,
+    "partialMatch": true,
+    "searchableFields": [
+      "referenceNumber",
+      "requestorName",
+      "requestorEmail",
+      "requestType",
+      "country",
+      "title",
+      "meetingDate (as formatted string)"
+    ],
+    "trimWhitespace": true,
+    "description": "Search matches if ANY searchable field contains the search term (case-insensitive partial match). Empty search term returns all results."
+  },
+  
+  "examples": {
+    "searchByReference": {
+      "request": "GET /api/meetingrequests?search=REF-001",
+      "description": "Find meeting request(s) with reference containing 'REF-001'"
+    },
+    "searchByRequestor": {
+      "request": "GET /api/meetingrequests?search=john",
+      "description": "Find meeting requests with requestor name containing 'john'"
+    },
+    "searchByKeyword": {
+      "request": "GET /api/meetingrequests?search=board",
+      "description": "Find meeting requests with 'board' in any field"
+    },
+    "getAllResults": {
+      "request": "GET /api/meetingrequests",
+      "description": "Get all meeting requests (no search filter)"
+    }
+  },
+  
+  "notes": [
+    "This API contract is for future server-side search implementation",
+    "MVP uses client-side filtering without API calls",
+    "When implementing backend search, maintain compatibility with existing GET /api/meetingrequests endpoint",
+    "Pagination parameters are optional and can be added when needed",
+    "Authentication must be enforced for all search requests"
+  ]
+}

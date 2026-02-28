@@ -1,0 +1,47 @@
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+ntuser.dat*
+
+# Logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node
+node_modules/
+src/client/node_modules/
+
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# .NET
+.vs/
+.nuget/
+*.nupkg
+
+# Databases and local caches
+src/server/meetingrequests.db
+src/server/meetingrequests.db-*
+*.db
+*.db-wal
+*.db-shm
+
+# Local tools and caches
+.claude/
+.tmp/
+.specify/
+.vscode/extensions/
+
+# Ignore packaged node artifacts
+package-lock.json
