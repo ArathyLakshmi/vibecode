@@ -26,6 +26,13 @@ import {
   ArrowDownload20Regular
 } from '@fluentui/react-icons'
 
+function normalizeStatus(rawStatus) {
+  const status = String(rawStatus || '').trim().toLowerCase()
+  if (status === 'published') return 'announced'
+  if (status === 'canceled') return 'cancelled'
+  return status
+}
+
 export default function AgendaPage() {
   const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -105,9 +112,10 @@ export default function AgendaPage() {
         const data = await res.json()
         
         if (!cancelled) {
+          const items = data.results || data.items || data.value || (Array.isArray(data) ? data : [])
           // Filter for confirmed and announced meetings only
-          const confirmedMeetings = (data.items || []).filter(m => {
-            const status = (m.status || '').toLowerCase()
+          const confirmedMeetings = items.filter(m => {
+            const status = normalizeStatus(m.status || m.Status)
             return status === 'confirmed' || status === 'announced'
           })
           setMeetings(confirmedMeetings)
@@ -532,11 +540,11 @@ export default function AgendaPage() {
                           </div>
                           <div className="mt-2">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              (meeting.status || '').toLowerCase() === 'announced'
+                              normalizeStatus(meeting.status || meeting.Status) === 'announced'
                                 ? 'bg-purple-100 text-purple-800'
                                 : 'bg-blue-100 text-blue-800'
                             }`}>
-                              {meeting.status || 'Confirmed'}
+                              {meeting.status || meeting.Status || 'Confirmed'}
                             </span>
                           </div>
                         </button>

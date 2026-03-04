@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useMsal } from '@azure/msal-react'
 import { useRoles, hasAnyRole } from '../auth/useRoles'
+import useAdvancedSearch from '../hooks/useAdvancedSearch'
+import AdvancedSearchPanel from './search/AdvancedSearchPanel'
+import FilterChip from './search/FilterChip'
+import { getAuthHeaders } from '../services/authService'
 import {
   FluentProvider,
   Button,
@@ -19,7 +23,8 @@ import {
   CalendarCheckmark24Regular, 
   Megaphone24Regular,
   DismissCircle24Regular,
-  Person20Regular
+  Person20Regular,
+  Filter24Regular
 } from '@fluentui/react-icons'
 
 // Status badge helper
@@ -85,6 +90,12 @@ export default function MeetingRequestsCalendar({ searchTerm = '', refreshTrigge
   const { accounts } = useMsal()
   const userRoles = useRoles()
   
+  // Advanced search hook
+  const advancedSearch = useAdvancedSearch({
+    initialFilters: {},
+    autoSearch: false,
+  })
+  
   const userName = useMemo(() => {
     return accounts && accounts.length > 0 ? (accounts[0].name || accounts[0].username) : ''
   }, [accounts])
@@ -110,11 +121,22 @@ export default function MeetingRequestsCalendar({ searchTerm = '', refreshTrigge
           params.append('requestor', userName)
         }
         
-        const response = await fetch(`/api/meetingrequests?${params}`)
+        // Add advanced search filters
+        if (advancedSearch.filters.category) params.append('category', advancedSearch.filters.category)
+        if (advancedSearch.filters.subcategory) params.append('subcategory', advancedSearch.filters.subcategory)
+        if (advancedSearch.filters.status) params.append('status', advancedSearch.filters.status)
+        if (advancedSearch.filters.classification) params.append('classification', advancedSearch.filters.classification)
+        if (advancedSearch.filters.requestor) params.append('requestor', advancedSearch.filters.requestor)
+        if (advancedSearch.filters.startDate) params.append('startDate', advancedSearch.filters.startDate)
+        if (advancedSearch.filters.endDate) params.append('endDate', advancedSearch.filters.endDate)
+        if (advancedSearch.filters.query) params.append('query', advancedSearch.filters.query)
+        
+        const headers = await getAuthHeaders()
+        const response = await fetch(`/api/meetingrequests?${params}`, { headers })
         if (!response.ok) throw new Error('Failed to fetch meetings')
         
         const data = await response.json()
-        const items = data.items || data.value || (Array.isArray(data) ? data : [])
+        const items = data.results || data.items || data.value || (Array.isArray(data) ? data : [])
         
         if (!cancelled) {
           setMeetings(items)
@@ -135,7 +157,7 @@ export default function MeetingRequestsCalendar({ searchTerm = '', refreshTrigge
     return () => {
       cancelled = true
     }
-  }, [refreshTrigger, filterMode, userName])
+  }, [refreshTrigger, filterMode, userName, advancedSearch.filters])
   
   // Filter meetings by status
   const filteredMeetings = useMemo(() => {
@@ -293,23 +315,125 @@ export default function MeetingRequestsCalendar({ searchTerm = '', refreshTrigge
         </div>
       </div>
 
-      {/* View mode toggle */}
-      <div className="mb-4 flex justify-end gap-2">
+      {/* View mode toggle and Advanced Search button */}
+      <div className="mb-4 flex justify-between items-center">
         <Button
-          appearance={viewMode === 'list' ? 'primary' : 'subtle'}
-          icon={<DocumentBulletList24Regular />}
-          onClick={() => onViewModeChange && onViewModeChange('list')}
+          appearance="outline"
+          icon={<Filter24Regular />}
+          onClick={advancedSearch.openSearchPanel}
+          data-testid="advanced-search-button"
         >
-          List View
+          Advanced Search
         </Button>
-        <Button
-          appearance={viewMode === 'calendar' ? 'primary' : 'subtle'}
-          icon={<CalendarCheckmark24Regular />}
-          onClick={() => onViewModeChange && onViewModeChange('calendar')}
-        >
-          Calendar View
-        </Button>
+        
+        <div className="flex gap-2">
+          <Button
+            appearance={viewMode === 'list' ? 'primary' : 'subtle'}
+            icon={<DocumentBulletList24Regular />}
+            onClick={() => onViewModeChange && onViewModeChange('list')}
+          >
+            List View
+          </Button>
+          <Button
+            appearance={viewMode === 'calendar' ? 'primary' : 'subtle'}
+            icon={<CalendarCheckmark24Regular />}
+            onClick={() => onViewModeChange && onViewModeChange('calendar')}
+          >
+            Calendar View
+          </Button>
+        </div>
       </div>
+
+      {/* Advanced Search Panel */}
+      <AdvancedSearchPanel
+        isOpen={advancedSearch.isSearchPanelOpen}
+        onDismiss={advancedSearch.closeSearchPanel}
+        onApplyFilters={advancedSearch.applyFilters}
+        initialFilters={advancedSearch.filters}
+      />
+
+      {/* Active Filter Chips */}
+      {advancedSearch.hasActiveFilters() && (
+        <div className="mb-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Active Filters</h3>
+            <Button
+              appearance="subtle"
+              size="small"
+              onClick={advancedSearch.clearFilters}
+              data-testid="clear-all-filters-button"
+            >
+              Clear All
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {advancedSearch.filters.category && (
+              <FilterChip
+                label="Category"
+                value={advancedSearch.filters.category}
+                onRemove={() => advancedSearch.removeFilter('category')}
+                testId="filter-chip-category"
+              />
+            )}
+            {advancedSearch.filters.subcategory && (
+              <FilterChip
+                label="Subcategory"
+                value={advancedSearch.filters.subcategory}
+                onRemove={() => advancedSearch.removeFilter('subcategory')}
+                testId="filter-chip-subcategory"
+              />
+            )}
+            {advancedSearch.filters.status && (
+              <FilterChip
+                label="Status"
+                value={advancedSearch.filters.status}
+                onRemove={() => advancedSearch.removeFilter('status')}
+                testId="filter-chip-status"
+              />
+            )}
+            {advancedSearch.filters.classification && (
+              <FilterChip
+                label="Classification"
+                value={advancedSearch.filters.classification}
+                onRemove={() => advancedSearch.removeFilter('classification')}
+                testId="filter-chip-classification"
+              />
+            )}
+            {advancedSearch.filters.requestor && (
+              <FilterChip
+                label="Requestor"
+                value={advancedSearch.filters.requestor}
+                onRemove={() => advancedSearch.removeFilter('requestor')}
+                testId="filter-chip-requestor"
+              />
+            )}
+            {advancedSearch.filters.startDate && (
+              <FilterChip
+                label="Start Date"
+                value={new Date(advancedSearch.filters.startDate).toLocaleDateString()}
+                onRemove={() => advancedSearch.removeFilter('startDate')}
+                testId="filter-chip-startDate"
+              />
+            )}
+            {advancedSearch.filters.endDate && (
+              <FilterChip
+                label="End Date"
+                value={new Date(advancedSearch.filters.endDate).toLocaleDateString()}
+                onRemove={() => advancedSearch.removeFilter('endDate')}
+                testId="filter-chip-endDate"
+              />
+            )}
+            {advancedSearch.filters.query && (
+              <FilterChip
+                label="Query"
+                value={advancedSearch.filters.query}
+                onRemove={() => advancedSearch.removeFilter('query')}
+                testId="filter-chip-query"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Filter Controls */}
