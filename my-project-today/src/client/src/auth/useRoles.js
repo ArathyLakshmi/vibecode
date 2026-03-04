@@ -14,5 +14,6 @@ export function hasAnyRole(roles, expected) {
   if (!roles || roles.length === 0) return false
   if (!expected) return false
   const want = Array.isArray(expected) ? expected : [expected]
-  return want.some(r => roles.includes(r))
+  const rolesLower = roles.map(r => r.toLowerCase())
+  return want.some(r => rolesLower.includes(r.toLowerCase()))
 }

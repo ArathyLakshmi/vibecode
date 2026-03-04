@@ -1,24 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { useMsal } from '@azure/msal-react'
+import { useSearchParams } from 'react-router-dom'
 import { useRoles, hasAnyRole } from '../auth/useRoles'
 import AppShell from '../components/shell/AppShell'
 import jsPDF from 'jspdf'
 import {
   FluentProvider,
-  teamsLightTheme,
   Field,
   Input,
   Textarea,
   Button,
-  Spinner,
-  Dialog,
-  DialogTrigger,
-  DialogSurface,
-  DialogTitle,
-  DialogBody,
-  DialogActions,
-  DialogContent
+  Spinner
 } from '@fluentui/react-components'
+import { accessibleTheme } from '../theme/accessibleTheme'
 import {
   DocumentBulletList24Regular,
   Add24Regular,
@@ -40,26 +34,68 @@ export default function AgendaPage() {
   const [agendaData, setAgendaData] = useState({ items: [], notes: '' })
   const [saving, setSaving] = useState(false)
   const [loadingAgenda, setLoadingAgenda] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
   const [newAgendaItem, setNewAgendaItem] = useState({ title: '', description: '', orderIndex: 0 })
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   
   const { accounts } = useMsal()
   const userRoles = useRoles()
+  const [searchParams] = useSearchParams()
+  const meetingIdFromUrl = searchParams.get('meetingId')
   
   // Check if user is SecAdmin
   const userEmail = accounts && accounts.length > 0 ? (accounts[0].username || accounts[0].email || '').toLowerCase() : ''
   const isSecAdmin = hasAnyRole(userRoles, ['SecAdmin']) || userEmail === 'secadmin@arathylgmail.onmicrosoft.com'
+  
+  // Determine if page should be in read-only mode
+  const isReadOnlyMode = !isSecAdmin || !!meetingIdFromUrl
 
   // Load confirmed meetings (only confirmed meetings can have agendas)
   useEffect(() => {
-    if (!isSecAdmin) {
+    // Allow access if SecAdmin OR if viewing specific meeting via URL
+    if (!isSecAdmin && !meetingIdFromUrl) {
       setError('Access denied. Only SecAdmin can view this page.')
       setLoading(false)
       return
     }
 
+    // If viewing specific meeting via URL, only load that meeting
+    if (meetingIdFromUrl) {
+      let cancelled = false
+      async function loadSpecificMeeting() {
+        setLoading(true)
+        try {
+          const res = await fetch(`/api/meetingrequests/${meetingIdFromUrl}`)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const data = await res.json()
+          
+          if (!cancelled) {
+            // Extract meeting from response (API returns { meetingRequest: {...} })
+            const meeting = data.meetingRequest || data
+            
+            // Only show if it's confirmed or announced
+            const status = (meeting.status ?? meeting.Status ?? '').toLowerCase()
+            if (status === 'confirmed' || status === 'announced') {
+              setMeetings([meeting])
+              setSelectedMeeting(meeting)
+            } else {
+              setError('Agenda is only available for confirmed or announced meetings.')
+            }
+          }
+        } catch (err) {
+          if (!cancelled) {
+            console.error('Error loading meeting:', err)
+            setError(err.message || String(err))
+          }
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+      }
+      loadSpecificMeeting()
+      return () => { cancelled = true }
+    }
+
+    // Otherwise, load all confirmed meetings (SecAdmin only)
     let cancelled = false
     async function loadMeetings() {
       setLoading(true)
@@ -87,7 +123,7 @@ export default function AgendaPage() {
     }
     loadMeetings()
     return () => { cancelled = true }
-  }, [isSecAdmin])
+  }, [isSecAdmin, meetingIdFromUrl])
 
   // Load agenda for selected meeting
   useEffect(() => {
@@ -137,7 +173,6 @@ export default function AgendaPage() {
       items: [...prev.items, item]
     }))
     setNewAgendaItem({ title: '', description: '', orderIndex: 0 })
-    setShowDialog(false)
   }
 
   const handleRemoveAgendaItem = (itemId) => {
@@ -229,7 +264,7 @@ export default function AgendaPage() {
       }
       
       // Header
-      doc.setFillColor(98, 100, 167) // #6264A7
+      doc.setFillColor(0, 120, 212) // #0078d4
       doc.rect(0, 0, pageWidth, 40, 'F')
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(20)
@@ -327,11 +362,11 @@ export default function AgendaPage() {
     }
   }
 
-  // Show access denied message if not SecAdmin
-  if (!isSecAdmin) {
+  // Show access denied message if not SecAdmin and no meeting ID in URL
+  if (!isSecAdmin && !meetingIdFromUrl) {
     return (
       <AppShell>
-        <FluentProvider theme={teamsLightTheme}>
+        <FluentProvider theme={accessibleTheme}>
           <div className="flex items-center justify-center min-h-96">
             <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
               <Warning24Regular className="mx-auto mb-4 text-red-600" style={{ width: '48px', height: '48px' }} />
@@ -348,18 +383,62 @@ export default function AgendaPage() {
 
   return (
     <AppShell>
-      <FluentProvider theme={teamsLightTheme}>
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6 bg-gradient-to-r from-[#6264A7] to-[#5558A0] rounded-xl shadow-md p-6 text-white">
-            <div className="flex items-center gap-3">
-              <CalendarLtr24Regular style={{ width: '32px', height: '32px' }} />
-              <div>
-                <h1 className="text-2xl font-bold">Meeting Agendas</h1>
-                <p className="text-sm opacity-90">Manage agendas for confirmed meetings</p>
+      <FluentProvider theme={accessibleTheme}>
+        <div className="min-h-screen bg-[#f1fbfb]">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            {/* Welcome banner for consistent styling */}
+            <div
+              className="mb-6 relative overflow-hidden rounded-xl border border-gray-200 shadow-md"
+              style={{
+                backgroundImage: 'url("/banner-welcome.svg")',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+              <div className="absolute inset-0 bg-white/25" aria-hidden="true" />
+              <div className="relative px-6 py-8 text-[#035c73]">
+                <p className="text-sm uppercase tracking-[0.15em] font-semibold text-[#046f8b]">Agendas</p>
+                <h1 className="mt-2 text-2xl font-bold leading-tight">Meeting agendas at a glance</h1>
+                <p className="mt-2 text-sm text-[#046f8b] max-w-2xl">
+                  Review, edit, and export agendas with the same streamlined experience as your meeting requests.
+                </p>
               </div>
             </div>
-          </div>
+
+            {/* Header card */}
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[#e6f2ff] text-[#0078d4]">
+                    <CalendarLtr24Regular style={{ width: '28px', height: '28px' }} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Meeting Agendas</h2>
+                    <p className="text-sm text-gray-600">
+                      {isReadOnlyMode ? 'View meeting agenda' : 'Manage agendas for confirmed meetings'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div className="w-2 h-2 rounded-full bg-[#0078d4]" />
+                  <span>{meetingIdFromUrl ? 'Focused on a single meeting' : `Confirmed/Announced: ${meetings.length || 0}`}</span>
+                </div>
+              </div>
+            </div>
+
+          {/* Read-Only Mode Banner */}
+          {isReadOnlyMode && (
+            <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r">
+              <div className="flex items-center">
+                <Warning24Regular className="text-blue-600 mr-3" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900">
+                    You are viewing this agenda in read-only mode. {!isSecAdmin && 'Only SecAdmin users can edit agendas.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Success Message */}
           {successMessage && (
@@ -422,51 +501,53 @@ export default function AgendaPage() {
           )}
 
           {!loading && !error && meetings.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Meetings List */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg shadow-md p-4">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <DocumentBulletList24Regular />
-                    Confirmed Meetings ({meetings.length})
-                  </h2>
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {meetings.map(meeting => (
-                      <button
-                        key={meeting.id}
-                        onClick={() => setSelectedMeeting(meeting)}
-                        className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                          selectedMeeting?.id === meeting.id
-                            ? 'border-[#6264A7] bg-[#6264A7]/10'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="font-medium text-sm text-gray-900 mb-1">
-                          {meeting.title || meeting.meetingTitle || 'Untitled Meeting'}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          {meeting.referenceNumber || meeting.ReferenceNumber || 'No ref'}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(meeting.meetingDate || meeting.MeetingDate).toLocaleDateString()}
-                        </div>
-                        <div className="mt-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            (meeting.status || '').toLowerCase() === 'announced'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {meeting.status || 'Confirmed'}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+            <div className={`grid grid-cols-1 ${meetingIdFromUrl ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-6`}>
+              {/* Meetings List - only show if not viewing specific meeting */}
+              {!meetingIdFromUrl && (
+                <div className="lg:col-span-1">
+                  <div className="bg-white rounded-lg shadow-md p-4">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentBulletList24Regular />
+                      Confirmed Meetings ({meetings.length})
+                    </h2>
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                      {meetings.map(meeting => (
+                        <button
+                          key={meeting.id}
+                          onClick={() => setSelectedMeeting(meeting)}
+                          className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                            selectedMeeting?.id === meeting.id
+                              ? 'border-[#0078d4] bg-[#0078d4]/10'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="font-medium text-sm text-gray-900 mb-1">
+                            {meeting.title || meeting.meetingTitle || 'Untitled Meeting'}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {meeting.referenceNumber || meeting.ReferenceNumber || 'No ref'}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {new Date(meeting.meetingDate || meeting.MeetingDate).toLocaleDateString()}
+                          </div>
+                          <div className="mt-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              (meeting.status || '').toLowerCase() === 'announced'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {meeting.status || 'Confirmed'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Agenda Editor */}
-              <div className="lg:col-span-2">
+              <div className={meetingIdFromUrl ? 'lg:col-span-1' : 'lg:col-span-2'}>
                 {selectedMeeting ? (
                   <div className="bg-white rounded-lg shadow-md p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -479,22 +560,26 @@ export default function AgendaPage() {
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          appearance="secondary"
-                          icon={<ArrowDownload20Regular />}
-                          onClick={handleDownloadPDF}
-                          disabled={saving || loadingAgenda}
-                        >
-                          Download PDF
-                        </Button>
-                        <Button
-                          appearance="primary"
-                          icon={<Save20Regular />}
-                          onClick={handleSaveAgenda}
-                          disabled={saving}
-                        >
-                          {saving ? 'Saving...' : 'Save Agenda'}
-                        </Button>
+                        {(agendaData.items.length > 0 || agendaData.notes) && (
+                          <Button
+                            appearance="secondary"
+                            icon={<ArrowDownload20Regular />}
+                            onClick={handleDownloadPDF}
+                            disabled={saving || loadingAgenda}
+                          >
+                            Download PDF
+                          </Button>
+                        )}
+                        {!isReadOnlyMode && (
+                          <Button
+                            appearance="primary"
+                            icon={<Save20Regular />}
+                            onClick={handleSaveAgenda}
+                            disabled={saving}
+                          >
+                            {saving ? 'Saving...' : 'Save Agenda'}
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -508,21 +593,52 @@ export default function AgendaPage() {
                       <>
                         {/* Agenda Items */}
                         <div className="mb-6">
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-gray-700">Agenda Items</h3>
-                            <Button
-                              appearance="subtle"
-                              icon={<Add24Regular />}
-                              onClick={() => setShowDialog(true)}
-                              size="small"
-                            >
-                              Add Item
-                            </Button>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Agenda Items</h3>
                           </div>
+
+                          {!isReadOnlyMode && (
+                            <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                              <div className="grid grid-cols-1 gap-3">
+                                <Field label="Title" required>
+                                  <Input
+                                    value={newAgendaItem.title}
+                                    onChange={(e) => setNewAgendaItem(prev => ({ ...prev, title: e.target.value }))}
+                                    placeholder="e.g., Opening Remarks, Budget Review"
+                                  />
+                                </Field>
+                                <Field label="Description">
+                                  <Textarea
+                                    value={newAgendaItem.description}
+                                    onChange={(e) => setNewAgendaItem(prev => ({ ...prev, description: e.target.value }))}
+                                    rows={3}
+                                    placeholder="Optional details about this agenda item..."
+                                  />
+                                </Field>
+                                <div className="flex gap-2">
+                                  <Button
+                                    appearance="primary"
+                                    icon={<Add24Regular />}
+                                    onClick={handleAddAgendaItem}
+                                    disabled={!newAgendaItem.title.trim()}
+                                  >
+                                    Add Item
+                                  </Button>
+                                  <Button
+                                    appearance="secondary"
+                                    onClick={() => setNewAgendaItem({ title: '', description: '', orderIndex: 0 })}
+                                    disabled={!newAgendaItem.title && !newAgendaItem.description}
+                                  >
+                                    Clear
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {agendaData.items.length === 0 ? (
                             <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-                              <p className="text-sm text-gray-600">No agenda items yet. Click "Add Item" to get started.</p>
+                              <p className="text-sm text-gray-600">No agenda items yet. {isReadOnlyMode ? 'Agenda items will appear here when available.' : 'Use the form above to add the first item.'}</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
@@ -531,22 +647,24 @@ export default function AgendaPage() {
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2 mb-2">
-                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#6264A7] text-white text-xs font-semibold">
+                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#0078d4] text-white text-xs font-semibold">
                                           {index + 1}
                                         </span>
                                         <h4 className="font-medium text-gray-900">{item.title}</h4>
                                       </div>
                                       {item.description && (
-                                        <p className="text-sm text-gray-600 ml-8">{item.description}</p>
+                                        <p className="text-sm text-gray-600">{item.description}</p>
                                       )}
                                     </div>
-                                    <button
-                                      onClick={() => handleRemoveAgendaItem(item.id)}
-                                      className="ml-2 p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
-                                      title="Remove item"
-                                    >
-                                      <Dismiss20Regular />
-                                    </button>
+                                    {!isReadOnlyMode && (
+                                      <button
+                                        onClick={() => handleRemoveAgendaItem(item.id)}
+                                        className="ml-2 p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                        title="Remove item"
+                                      >
+                                        <Dismiss20Regular />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -560,6 +678,8 @@ export default function AgendaPage() {
                             <Textarea
                               value={agendaData.notes}
                               onChange={(e) => setAgendaData(prev => ({ ...prev, notes: e.target.value }))}
+                              readOnly={isReadOnlyMode}
+                              disabled={isReadOnlyMode}
                               rows={4}
                               placeholder="Add any general notes or information about this meeting..."
                             />
@@ -580,46 +700,7 @@ export default function AgendaPage() {
               </div>
             </div>
           )}
-
-          {/* Add Agenda Item Dialog */}
-          <Dialog open={showDialog} onOpenChange={(e, data) => setShowDialog(data.open)}>
-            <DialogSurface>
-              <DialogBody>
-                <DialogTitle>Add Agenda Item</DialogTitle>
-                <DialogContent>
-                  <div className="space-y-4">
-                    <Field label="Title" required>
-                      <Input
-                        value={newAgendaItem.title}
-                        onChange={(e) => setNewAgendaItem(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="e.g., Opening Remarks, Budget Review"
-                      />
-                    </Field>
-                    <Field label="Description">
-                      <Textarea
-                        value={newAgendaItem.description}
-                        onChange={(e) => setNewAgendaItem(prev => ({ ...prev, description: e.target.value }))}
-                        rows={3}
-                        placeholder="Optional details about this agenda item..."
-                      />
-                    </Field>
-                  </div>
-                </DialogContent>
-                <DialogActions>
-                  <Button appearance="secondary" onClick={() => setShowDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    appearance="primary"
-                    onClick={handleAddAgendaItem}
-                    disabled={!newAgendaItem.title.trim()}
-                  >
-                    Add Item
-                  </Button>
-                </DialogActions>
-              </DialogBody>
-            </DialogSurface>
-          </Dialog>
+          </div>
         </div>
       </FluentProvider>
     </AppShell>

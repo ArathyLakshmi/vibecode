@@ -23,16 +23,23 @@ namespace VibeCode.Server.Services
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                Console.WriteLine($"[RegisterForMeetingAsync] Starting registration - MeetingId: {meetingId}, Email: {userEmail}, Name: {userName}");
+                
                 // 1. Get meeting and validate
                 var meeting = await _context.MeetingRequests.FindAsync(meetingId);
                 if (meeting == null)
                 {
+                    Console.WriteLine($"[RegisterForMeetingAsync] Meeting {meetingId} not found");
                     throw new InvalidOperationException("Meeting not found");
                 }
 
-                // 2. Check meeting status
-                if (meeting.Status != "Confirmed" && meeting.Status != "Announced")
+                Console.WriteLine($"[RegisterForMeetingAsync] Meeting found - Status: {meeting.Status}");
+
+                // 2. Check meeting status (case-insensitive)
+                var normalizedStatus = meeting.Status?.ToLowerInvariant();
+                if (normalizedStatus != "confirmed" && normalizedStatus != "announced")
                 {
+                    Console.WriteLine($"[RegisterForMeetingAsync] Invalid status: {meeting.Status}");
                     throw new InvalidOperationException($"Meeting status must be Confirmed or Announced. Current status: {meeting.Status}");
                 }
 
@@ -49,12 +56,18 @@ namespace VibeCode.Server.Services
                 // 4. Check for duplicate registration
                 var existingRegistration = await _context.MeetingRegistrations
                     .FirstOrDefaultAsync(r => r.MeetingRequestId == meetingId && 
-                                            r.UserEmail == userEmail && 
-                                            r.Status != "Cancelled");
+                                            r.UserEmail == userEmail);
                 
                 if (existingRegistration != null)
                 {
-                    throw new InvalidOperationException("You are already registered for this meeting");
+                    if (existingRegistration.Status != "Cancelled")
+                    {
+                        Console.WriteLine($"[RegisterForMeetingAsync] User already has active registration");
+                        throw new InvalidOperationException("You are already registered for this meeting");
+                    }
+                    
+                    // Reuse cancelled registration instead of creating new one
+                    Console.WriteLine($"[RegisterForMeetingAsync] Reusing cancelled registration {existingRegistration.Id}");
                 }
 
                 // 5. Count current confirmed registrations
@@ -78,22 +91,56 @@ namespace VibeCode.Server.Services
                     waitlistPosition = maxWaitlistPosition + 1;
                 }
 
-                // 7. Create registration
-                var registration = new MeetingRegistration
+                // 7. Create or update registration
+                MeetingRegistration registration;
+                
+                if (existingRegistration != null)
                 {
-                    MeetingRequestId = meetingId,
-                    UserEmail = userEmail,
-                    UserName = userName,
-                    RegistrationDate = DateTime.UtcNow,
-                    Status = status,
-                    WaitlistPosition = waitlistPosition,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                _context.MeetingRegistrations.Add(registration);
-                await _context.SaveChangesAsync();
+                    // Reuse existing cancelled registration
+                    registration = existingRegistration;
+                    registration.Status = status;
+                    registration.WaitlistPosition = waitlistPosition;
+                    registration.RegistrationDate = DateTime.UtcNow;
+                    registration.CancellationDate = null;
+                    registration.CancellationReason = null;
+                    registration.UpdatedAt = DateTime.UtcNow;
+                    
+                    Console.WriteLine($"[RegisterForMeetingAsync] Updating existing registration - Status: {status}, WaitlistPosition: {waitlistPosition}");
+                }
+                else
+                {
+                    // Create new registration
+                    registration = new MeetingRegistration
+                    {
+                        MeetingRequestId = meetingId,
+                        UserEmail = userEmail,
+                        UserName = userName,
+                        RegistrationDate = DateTime.UtcNow,
+                        Status = status,
+                        WaitlistPosition = waitlistPosition,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    
+                    Console.WriteLine($"[RegisterForMeetingAsync] Creating new registration - Status: {status}, WaitlistPosition: {waitlistPosition}");
+                    _context.MeetingRegistrations.Add(registration);
+                }
+                
+                try
+                {
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine($"[RegisterForMeetingAsync] Registration saved - Id: {registration.Id}");
+                }
+                catch (Exception saveEx)
+                {
+                    Console.WriteLine($"[RegisterForMeetingAsync] SaveChanges failed: {saveEx.Message}");
+                    Console.WriteLine($"[RegisterForMeetingAsync] Inner exception: {saveEx.InnerException?.Message}");
+                    Console.WriteLine($"[RegisterForMeetingAsync] Full stack trace: {saveEx}");
+                    throw;
+                }
+                
                 await transaction.CommitAsync();
+                Console.WriteLine($"[RegisterForMeetingAsync] Transaction committed successfully");
 
                 // 8. Return response
                 return new RegistrationResponseDto
@@ -210,7 +257,13 @@ namespace VibeCode.Server.Services
                 isAtCapacity = confirmedCount >= meeting.MaxAttendees.Value;
             }
 
-            var isRegistrationOpen = meeting.Status == "Confirmed" || meeting.Status == "Announced";
+            var isRegistrationOpen = false;
+            var normalizedStatus = meeting.Status?.ToLowerInvariant();
+            if (normalizedStatus == "confirmed" || normalizedStatus == "announced")
+            {
+                isRegistrationOpen = true;
+            }
+            
             DateTime? registrationDeadline = null;
 
             if (meeting.MeetingDate.HasValue && meeting.RegistrationDeadlineMinutes.HasValue)
@@ -305,6 +358,9 @@ namespace VibeCode.Server.Services
                     query = query.Where(r => r.Status != "Cancelled" && 
                                            r.MeetingRequest!.MeetingDate != null && 
                                            r.MeetingRequest.MeetingDate < now);
+                    break;
+                case "waitlisted":
+                    query = query.Where(r => r.Status == "Waitlisted");
                     break;
                 case "cancelled":
                     query = query.Where(r => r.Status == "Cancelled");

@@ -37,16 +37,23 @@ namespace VibeCode.Server.Controllers
         {
             try
             {
-                // Extract user info from claims
-                var userEmail = GetUserEmail();
-                var userName = GetUserName();
+                Console.WriteLine($"[RegisterForMeeting] Starting registration for meetingId: {meetingId}");
+                
+                // Extract user info from custom headers (for development) or claims
+                var userEmail = Request.Headers["X-User-Email"].FirstOrDefault() ?? GetUserEmail();
+                var userName = Request.Headers["X-User-Name"].FirstOrDefault() ?? GetUserName();
+
+                Console.WriteLine($"[RegisterForMeeting] User: {userEmail}, Name: {userName}");
 
                 if (string.IsNullOrEmpty(userEmail))
                 {
+                    Console.WriteLine("[RegisterForMeeting] ERROR: User email is null or empty");
                     return Unauthorized(new { error = "User email could not be determined from authentication token" });
                 }
 
                 var result = await _registrationService.RegisterForMeetingAsync(meetingId, userEmail, userName ?? "Unknown User");
+                
+                Console.WriteLine($"[RegisterForMeeting] Registration successful: Status={result.Status}, WaitlistPosition={result.WaitlistPosition}");
                 
                 return CreatedAtAction(
                     nameof(GetMyRegistrations), 
@@ -55,6 +62,8 @@ namespace VibeCode.Server.Controllers
             }
             catch (InvalidOperationException ex)
             {
+                Console.WriteLine($"[RegisterForMeeting] InvalidOperationException: {ex.Message}");
+                
                 // Business rule violations
                 if (ex.Message.Contains("not found"))
                     return NotFound(new { error = ex.Message });
@@ -65,6 +74,8 @@ namespace VibeCode.Server.Controllers
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[RegisterForMeeting] Exception: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"[RegisterForMeeting] Stack trace: {ex.StackTrace}");
                 return StatusCode(500, new { error = "An error occurred while processing your registration", details = ex.Message });
             }
         }
@@ -122,12 +133,19 @@ namespace VibeCode.Server.Controllers
                 }
 
                 var userEmail = GetUserEmail();
-                var isRequestor = meeting.RequestorEmail == userEmail;
+                var isRequestor = !string.IsNullOrEmpty(userEmail) && meeting.RequestorEmail?.Equals(userEmail, StringComparison.OrdinalIgnoreCase) == true;
+                
+                // Check roles via claims
                 var isAdmin = User.IsInRole("SecAdmin") || User.IsInRole("EdOffice") || User.IsInRole("ManagementOffice");
-
-                if (!isRequestor && !isAdmin)
+                
+                // For development: also check hardcoded admin emails (matching frontend logic)
+                var isSecAdmin = userEmail?.Equals("secadmin@arathylgmail.onmicrosoft.com", StringComparison.OrdinalIgnoreCase) == true;
+                var isEdOffice = userEmail?.Equals("edoffice@arathylgmail.onmicrosoft.com", StringComparison.OrdinalIgnoreCase) == true;
+                var isDevAdmin = userEmail?.Equals("dev@example.com", StringComparison.OrdinalIgnoreCase) == true;
+                
+                if (!isRequestor && !isAdmin && !isSecAdmin && !isEdOffice && !isDevAdmin)
                 {
-                    return Forbid();
+                    return StatusCode(403, new { error = "You do not have permission to view attendees for this meeting" });
                 }
 
                 var result = await _registrationService.GetAttendeesAsync(meetingId, status);
@@ -238,15 +256,25 @@ namespace VibeCode.Server.Controllers
         /// </summary>
         private string? GetUserEmail()
         {
+            // First, check Azure AD claims (for authenticated users)
+            var email = User.FindFirst("preferred_username")?.Value 
+                ?? User.FindFirst("email")?.Value 
+                ?? User.FindFirst("upn")?.Value
+                ?? User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")?.Value
+                ?? User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value;
+            
+            if (!string.IsNullOrEmpty(email))
+            {
+                return email.ToLowerInvariant();
+            }
+
+            // For development without authentication, use a default email
             if (User?.Identity?.IsAuthenticated != true)
             {
-                // For development without authentication, use a default email
                 return "dev@example.com";
             }
 
-            return User.FindFirst("preferred_username")?.Value 
-                ?? User.FindFirst("email")?.Value 
-                ?? User.FindFirst("upn")?.Value;
+            return null;
         }
 
         /// <summary>

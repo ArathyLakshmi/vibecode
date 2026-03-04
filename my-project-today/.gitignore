@@ -3,6 +3,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 ntuser.dat*
+.DS_Store
+*.swp
+*.tmp
 
 # Logs
 *.log
@@ -18,6 +21,10 @@ ntuser.dat*
 # Node
 node_modules/
 src/client/node_modules/
+dist/
+build/
+coverage/
+.env*
 
 # Build outputs
 bin/

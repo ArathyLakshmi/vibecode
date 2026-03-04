@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
+import { Dismiss24Regular, Edit24Regular, DismissCircle24Regular, CheckmarkCircle24Regular, CalendarCheckmark24Regular, Megaphone24Regular, Delete24Regular, DocumentBulletList24Regular } from '@fluentui/react-icons'
 
-export default function Drawer({ isOpen, onClose, children }) {
+export default function Drawer({ isOpen, onClose, children, title = 'Details', onEdit, onCancel, onApprove, onConfirm, onAnnounce, onDelete, onViewAgenda }) {
   // Handle Escape key to close drawer
   useEffect(() => {
     const handleEsc = (e) => {
@@ -25,26 +26,98 @@ export default function Drawer({ isOpen, onClose, children }) {
       />
       
       {/* Drawer */}
-      <div 
-        className="fixed right-0 top-0 h-full w-full md:w-1/2 lg:w-2/5 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto"
+      <aside 
+        className="fixed right-0 top-0 h-full w-full sm:w-[52%] md:w-[35.33%] bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col"
         role="dialog"
         aria-modal="true"
       >
-        <div className="p-6">
-          {/* Close button */}
-          <button 
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Close details"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
+        {/* Header with Microsoft blue theme */}
+        <div className="p-4 border-b flex items-center justify-between flex-shrink-0 bg-[#0078d4] text-white">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <div className="flex items-center gap-2">
+            {onViewAgenda && (
+              <button 
+                onClick={onViewAgenda}
+                className="text-white hover:bg-indigo-600 bg-indigo-500 px-3 py-1 rounded transition-colors text-sm font-medium flex items-center gap-1"
+                aria-label="View Agenda"
+              >
+                <DocumentBulletList24Regular />
+                View Agenda
+              </button>
+            )}
+            {onApprove && (
+              <button 
+                onClick={onApprove}
+                className="text-white hover:bg-green-600 bg-green-500 px-3 py-1 rounded transition-colors text-sm font-medium flex items-center gap-1"
+                aria-label="Approve Request"
+              >
+                <CheckmarkCircle24Regular />
+                Approve Request
+              </button>
+            )}
+            {onConfirm && (
+              <button 
+                onClick={onConfirm}
+                className="text-white hover:bg-blue-600 bg-blue-500 px-3 py-1 rounded transition-colors text-sm font-medium flex items-center gap-1"
+                aria-label="Confirm Request"
+              >
+                <CalendarCheckmark24Regular />
+                Confirm Request
+              </button>
+            )}
+            {onAnnounce && (
+              <button 
+                onClick={onAnnounce}
+                className="text-white hover:bg-purple-600 bg-purple-500 px-3 py-1 rounded transition-colors text-sm font-medium flex items-center gap-1"
+                aria-label="Announce Request"
+              >
+                <Megaphone24Regular />
+                Announce Request
+              </button>
+            )}
+            {onDelete && (
+              <button 
+                onClick={onDelete}
+                className="text-white hover:bg-red-700 bg-red-600 px-3 py-1 rounded transition-colors text-sm font-medium flex items-center gap-1"
+                aria-label="Delete Draft Request"
+              >
+                <Delete24Regular />
+                Delete Draft
+              </button>
+            )}
+            {onCancel && (
+              <button 
+                onClick={onCancel}
+                className="text-white hover:bg-white/20 px-3 py-1 rounded transition-colors text-sm font-medium"
+                aria-label="Cancel Request"
+              >
+                Cancel Request
+              </button>
+            )}
+            {onEdit && (
+              <button 
+                onClick={onEdit}
+                className="text-white hover:bg-white/20 p-1 rounded transition-colors"
+                aria-label="Edit"
+              >
+                <Edit24Regular />
+              </button>
+            )}
+            <button 
+              onClick={onClose}
+              className="text-white hover:bg-white/20 p-1 rounded transition-colors"
+              aria-label="Close details"
+            >
+              <Dismiss24Regular />
+            </button>
+          </div>
+        </div>
+        
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-auto p-4 pb-8">
           {children}
         </div>
-      </div>
+      </aside>
     </>
   )
 }

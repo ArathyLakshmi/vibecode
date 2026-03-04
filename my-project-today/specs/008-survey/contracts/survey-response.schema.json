@@ -1,0 +1,196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Survey Response Submission Schema",
+  "description": "JSON Schema for submitting survey responses and retrieving results",
+  "definitions": {
+    "QuestionResponse": {
+      "type": "object",
+      "properties": {
+        "questionId": {
+          "type": "integer",
+          "description": "Question ID being answered"
+        },
+        "answerText": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Answer for Text questions"
+        },
+        "answerOption": {
+          "type": "string",
+          "description": "Selected option for MultipleChoice questions"
+        },
+        "answerRating": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Rating for Rating questions (1-5)"
+        }
+      },
+      "required": ["questionId"],
+      "oneOf": [
+        {
+          "required": ["answerText"]
+        },
+        {
+          "required": ["answerOption"]
+        },
+        {
+          "required": ["answerRating"]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "RatingDistribution": {
+      "type": "object",
+      "properties": {
+        "1": {
+          "type": "integer"
+        },
+        "2": {
+          "type": "integer"
+        },
+        "3": {
+          "type": "integer"
+        },
+        "4": {
+          "type": "integer"
+        },
+        "5": {
+          "type": "integer"
+        }
+      },
+      "required": ["1", "2", "3", "4", "5"],
+      "additionalProperties": false
+    },
+    "MultipleChoiceOption": {
+      "type": "object",
+      "properties": {
+        "option": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "percentage": {
+          "type": "number"
+        }
+      },
+      "required": ["option", "count", "percentage"],
+      "additionalProperties": false
+    },
+    "TextResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "isAnonymous": {
+          "type": "boolean"
+        }
+      },
+      "required": ["response", "submittedAt", "isAnonymous"],
+      "additionalProperties": false
+    },
+    "QuestionResult": {
+      "type": "object",
+      "properties": {
+        "questionId": {
+          "type": "integer"
+        },
+        "questionText": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Text", "MultipleChoice", "Rating"]
+        },
+        "ratingAverage": {
+          "type": "number",
+          "description": "Average rating (for Rating questions)"
+        },
+        "ratingDistribution": {
+          "$ref": "#/definitions/RatingDistribution",
+          "description": "Rating distribution (for Rating questions)"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MultipleChoiceOption"
+          },
+          "description": "Option results (for MultipleChoice questions)"
+        },
+        "textResponses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TextResponse"
+          },
+          "description": "Text responses (for Text questions)"
+        }
+      },
+      "required": ["questionId", "questionText", "type"],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Submit Survey Response Request",
+      "type": "object",
+      "properties": {
+        "isAnonymous": {
+          "type": "boolean",
+          "description": "Submit response anonymously (no user identification)"
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QuestionResponse"
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": ["isAnonymous", "responses"],
+      "additionalProperties": false
+    },
+    {
+      "title": "Get Survey Results Response",
+      "type": "object",
+      "properties": {
+        "surveyId": {
+          "type": "integer"
+        },
+        "surveyTitle": {
+          "type": "string"
+        },
+        "totalResponses": {
+          "type": "integer"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QuestionResult"
+          }
+        }
+      },
+      "required": ["surveyId", "surveyTitle", "totalResponses", "questions"],
+      "additionalProperties": false
+    },
+    {
+      "title": "Submit Response Success",
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "const": "Response submitted successfully"
+        }
+      },
+      "required": ["message"],
+      "additionalProperties": false
+    }
+  ]
+}

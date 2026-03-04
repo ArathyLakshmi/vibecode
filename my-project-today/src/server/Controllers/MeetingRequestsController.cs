@@ -45,9 +45,16 @@ public class MeetingRequestsController : ControllerBase
         }
 
         string resolvedRequestor = null;
+        string resolvedRequestorEmail = null;
         if (User?.Identity?.IsAuthenticated == true)
         {
             resolvedRequestor = User.FindFirst("name")?.Value ?? User.FindFirst("preferred_username")?.Value ?? User.Identity?.Name;
+            resolvedRequestorEmail = User.FindFirst("preferred_username")?.Value ?? User.FindFirst("email")?.Value ?? User.FindFirst("upn")?.Value;
+            Console.WriteLine($"[DEBUG] Create - Authenticated user: {resolvedRequestor}, Email: {resolvedRequestorEmail}");
+        }
+        else
+        {
+            Console.WriteLine($"[DEBUG] Create - User not authenticated, using body RequestorName: {body.RequestorName}");
         }
         var entity = new MeetingRequest
         {
@@ -60,6 +67,7 @@ public class MeetingRequestsController : ControllerBase
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
             RequestorName = resolvedRequestor ?? (body.RequestorName ?? string.Empty),
+            RequestorEmail = resolvedRequestorEmail,
             RequestType = body.RequestType ?? string.Empty,
             Country = body.Country ?? string.Empty,
             Status = body.Status ?? "Pending",
@@ -93,9 +101,16 @@ public class MeetingRequestsController : ControllerBase
         if (body is null) return BadRequest(new { error = "Body required" });
         body.NormalizeAliases();
         string resolvedDraftRequestor = null;
+        string resolvedDraftRequestorEmail = null;
         if (User?.Identity?.IsAuthenticated == true)
         {
             resolvedDraftRequestor = User.FindFirst("name")?.Value ?? User.FindFirst("preferred_username")?.Value ?? User.Identity?.Name;
+            resolvedDraftRequestorEmail = User.FindFirst("preferred_username")?.Value ?? User.FindFirst("email")?.Value ?? User.FindFirst("upn")?.Value;
+            Console.WriteLine($"[DEBUG] SaveDraft - Authenticated user: {resolvedDraftRequestor}, Email: {resolvedDraftRequestorEmail}");
+        }
+        else
+        {
+            Console.WriteLine($"[DEBUG] SaveDraft - User not authenticated, using body RequestorName: {body.RequestorName}");
         }
         var entity = new MeetingRequest
         {
@@ -108,6 +123,7 @@ public class MeetingRequestsController : ControllerBase
             Comments = body.Comments ?? string.Empty,
             Classification = body.Classification ?? string.Empty,
             RequestorName = resolvedDraftRequestor ?? (body.RequestorName ?? string.Empty),
+            RequestorEmail = resolvedDraftRequestorEmail,
             RequestType = body.RequestType ?? string.Empty,
             Country = body.Country ?? string.Empty,
             Status = body.Status ?? "Draft",
@@ -216,6 +232,31 @@ public class MeetingRequestsController : ControllerBase
 
         if (body.Status != null) TrackChange("Status", existing.Status, body.Status);
         existing.Status = body.Status ?? existing.Status;
+        
+        // Update IsDraft based on Status (Draft = true, anything else = false)
+        bool wasDraft = existing.IsDraft;
+        if (body.Status != null)
+        {
+            existing.IsDraft = body.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Generate reference number if converting from draft to submitted and no reference number exists
+        if (wasDraft && !existing.IsDraft && string.IsNullOrWhiteSpace(existing.ReferenceNumber))
+        {
+            var rng = new System.Random();
+            const int maxAttempts = 10;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                var candidate = rng.Next(0, 100000).ToString("D5");
+                var exists = await _db.MeetingRequests.AnyAsync(x => x.ReferenceNumber == candidate);
+                if (!exists)
+                {
+                    existing.ReferenceNumber = candidate;
+                    TrackChange("Reference Number", null, candidate);
+                    break;
+                }
+            }
+        }
 
         // Update metadata
         existing.UpdatedAt = changeTime;
@@ -503,7 +544,7 @@ public class MeetingRequestsController : ControllerBase
         [FromQuery] string? endDate,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
-        [FromQuery] string? requestorEmail = null)  // NEW: Filter by requestor email
+        [FromQuery] string? requestor = null)  // Filter by requestor name
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
@@ -517,18 +558,22 @@ public class MeetingRequestsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(startDate) && DateTime.TryParse(startDate, out var sd)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date >= sd.Date);
         if (!string.IsNullOrWhiteSpace(endDate) && DateTime.TryParse(endDate, out var ed)) q = q.Where(x => x.MeetingDate.HasValue && x.MeetingDate.Value.Date <= ed.Date);
         
-        // NEW: Filter by requestor email (Feature: 1-requestor-filter)
-        // Matches either RequestorEmail field OR RequestorName field (for backwards compatibility)
-        // This enables "My Requests" vs "All Requests" toggle in frontend
-        if (!string.IsNullOrWhiteSpace(requestorEmail))
+        // Filter by requestor name (Feature: 1-requestor-filter)
+        // Matches RequestorName, RequestorEmail, or CreatedBy fields
+        if (!string.IsNullOrWhiteSpace(requestor))
         {
+            var lowerRequestor = requestor.ToLower();
+            Console.WriteLine($"[DEBUG] Filtering by requestor: {requestor}");
+            
             q = q.Where(x => 
-                (!string.IsNullOrEmpty(x.RequestorEmail) && x.RequestorEmail == requestorEmail) ||
-                (!string.IsNullOrEmpty(x.RequestorName) && x.RequestorName == requestorEmail));
+                (!string.IsNullOrEmpty(x.RequestorName) && x.RequestorName.ToLower().Contains(lowerRequestor)) ||
+                (!string.IsNullOrEmpty(x.RequestorEmail) && x.RequestorEmail.ToLower().Contains(lowerRequestor)) ||
+                (!string.IsNullOrEmpty(x.CreatedBy) && x.CreatedBy.ToLower().Contains(lowerRequestor)));
         }
         
         // Get total count before pagination
         var totalCount = await q.CountAsync();
+        Console.WriteLine($"[DEBUG] Total count after filtering: {totalCount}");
         
         // Apply pagination and ordering (most recent first)
         var result = await q
@@ -550,6 +595,7 @@ public class MeetingRequestsController : ControllerBase
                 isDraft = x.IsDraft,
                 referenceNumber = x.ReferenceNumber,
                 requestorName = x.RequestorName,
+                requestorEmail = x.RequestorEmail,
                 requestType = x.RequestType,
                 country = x.Country,
                 createdAt = x.CreatedAt,
@@ -574,8 +620,34 @@ public class MeetingRequestsController : ControllerBase
     public IActionResult WhoAmI()
     {
         var name = User?.Identity?.Name;
-        if (string.IsNullOrWhiteSpace(name)) return Ok(new { name = (string?)null });
-        return Ok(new { name });
+        var email = User?.Identity?.IsAuthenticated == true 
+            ? (User.FindFirst("preferred_username")?.Value ?? User.FindFirst("email")?.Value ?? User.FindFirst("upn")?.Value)
+            : null;
+        
+        Console.WriteLine($"[DEBUG] WhoAmI - Name: {name}, Email: {email}, IsAuthenticated: {User?.Identity?.IsAuthenticated}");
+        
+        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(email)) 
+            return Ok(new { name = (string?)null, email = (string?)null });
+        
+        return Ok(new { name, email });
+    }
+
+    [HttpGet("debug/requests")]
+    public async Task<IActionResult> DebugRequests()
+    {
+        var all = await _db.MeetingRequests
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(10)
+            .Select(x => new { 
+                x.Id, 
+                x.Title, 
+                x.RequestorName, 
+                x.RequestorEmail, 
+                x.CreatedBy,
+                x.CreatedAt 
+            })
+            .ToListAsync();
+        return Ok(all);
     }
 
     // ===== File Attachment Endpoints =====
@@ -707,6 +779,93 @@ public class MeetingRequestsController : ControllerBase
             return StatusCode(500, new { error = "Failed to delete attachment", details = ex.Message });
         }
     }
+
+    // Agenda endpoints (SecAdmin only)
+    [HttpGet("{id}/agenda")]
+    public async Task<IActionResult> GetAgenda(int id)
+    {
+        var meetingRequest = await _db.MeetingRequests.FindAsync(id);
+        if (meetingRequest == null)
+            return NotFound(new { error = "Meeting request not found" });
+
+        var agendaItems = await _db.MeetingAgendaItems
+            .Where(a => a.MeetingRequestId == id)
+            .OrderBy(a => a.OrderIndex)
+            .ToListAsync();
+
+        var agenda = await _db.MeetingAgendas.FirstOrDefaultAsync(a => a.MeetingRequestId == id);
+
+        return Ok(new
+        {
+            items = agendaItems.Select(item => new
+            {
+                id = item.Id,
+                title = item.Title,
+                description = item.Description,
+                orderIndex = item.OrderIndex
+            }),
+            notes = agenda?.Notes ?? string.Empty
+        });
+    }
+
+    [HttpPost("{id}/agenda")]
+    public async Task<IActionResult> SaveAgenda(int id, [FromBody] MeetingAgendaBody body)
+    {
+        if (body == null)
+            return BadRequest(new { error = "Body required" });
+
+        var meetingRequest = await _db.MeetingRequests.FindAsync(id);
+        if (meetingRequest == null)
+            return NotFound(new { error = "Meeting request not found" });
+
+        // Check if status is confirmed or announced
+        var status = (meetingRequest.Status ?? string.Empty).ToLower();
+        if (status != "confirmed" && status != "announced")
+        {
+            return BadRequest(new { error = "Agendas can only be created for confirmed or announced meetings" });
+        }
+
+        // Update or create agenda
+        var agenda = await _db.MeetingAgendas.FirstOrDefaultAsync(a => a.MeetingRequestId == id);
+        if (agenda == null)
+        {
+            agenda = new MeetingAgenda
+            {
+                MeetingRequestId = id,
+                Notes = body.Notes ?? string.Empty,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.MeetingAgendas.Add(agenda);
+        }
+        else
+        {
+            agenda.Notes = body.Notes ?? string.Empty;
+            agenda.UpdatedAt = DateTime.UtcNow;
+        }
+
+        // Remove existing agenda items and add new ones
+        var existingItems = await _db.MeetingAgendaItems.Where(a => a.MeetingRequestId == id).ToListAsync();
+        _db.MeetingAgendaItems.RemoveRange(existingItems);
+
+        if (body.Items != null)
+        {
+            var newItems = body.Items.Select((item, index) => new MeetingAgendaItem
+            {
+                MeetingRequestId = id,
+                Title = item.Title ?? string.Empty,
+                Description = item.Description ?? string.Empty,
+                OrderIndex = index,
+                CreatedAt = DateTime.UtcNow
+            }).ToList();
+
+            _db.MeetingAgendaItems.AddRange(newItems);
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Agenda saved successfully" });
+    }
 }
 
 public class MeetingRequestBody
@@ -734,6 +893,18 @@ public class MeetingRequestBody
 public class CancelRequestBody
 {
     public string? Reason { get; set; }
+}
+
+public class MeetingAgendaBody
+{
+    public List<AgendaItemBody>? Items { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class AgendaItemBody
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
 }
 
 // helper to map legacy client field names to our model

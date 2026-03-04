@@ -1,0 +1,226 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Survey API Schema",
+  "description": "JSON Schema for Survey creation and retrieval endpoints",
+  "definitions": {
+    "QuestionType": {
+      "type": "string",
+      "enum": ["Text", "MultipleChoice", "Rating"],
+      "description": "Type of question: Text (open-ended), MultipleChoice (single select), Rating (1-5 stars)"
+    },
+    "SurveyStatus": {
+      "type": "string",
+      "enum": ["Draft", "Active", "Inactive"],
+      "description": "Survey lifecycle status"
+    },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Question ID (omit for new questions)"
+        },
+        "questionText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Question text"
+        },
+        "type": {
+          "$ref": "#/definitions/QuestionType"
+        },
+        "isRequired": {
+          "type": "boolean",
+          "description": "Whether question must be answered"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Display order (1-20)"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 2,
+          "maxItems": 10,
+          "description": "Answer options for MultipleChoice questions"
+        }
+      },
+      "required": ["questionText", "type", "isRequired", "order"],
+      "additionalProperties": false
+    },
+    "SurveyListItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "$ref": "#/definitions/SurveyStatus"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "publishedAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "questionCount": {
+          "type": "integer"
+        },
+        "responseCount": {
+          "type": "integer"
+        }
+      },
+      "required": ["id", "title", "description", "status", "createdBy", "createdAt", "questionCount", "responseCount"],
+      "additionalProperties": false
+    },
+    "Survey": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "$ref": "#/definitions/SurveyStatus"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "publishedAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Question"
+          }
+        },
+        "responseCount": {
+          "type": "integer"
+        }
+      },
+      "required": ["id", "title", "description", "status", "createdBy", "createdAt", "questions", "responseCount"],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Create Survey Request",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Question"
+          },
+          "minItems": 0,
+          "maxItems": 20
+        }
+      },
+      "required": ["title", "description", "questions"],
+      "additionalProperties": false
+    },
+    {
+      "title": "Update Survey Request",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Question"
+          },
+          "minItems": 0,
+          "maxItems": 20
+        }
+      },
+      "required": ["title", "description", "questions"],
+      "additionalProperties": false
+    },
+    {
+      "title": "List Surveys Response",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SurveyListItem"
+          }
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "totalCount": {
+          "type": "integer"
+        },
+        "totalPages": {
+          "type": "integer"
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": ["items", "page", "pageSize", "totalCount", "totalPages", "hasMore"],
+      "additionalProperties": false
+    },
+    {
+      "title": "Get Survey Response",
+      "$ref": "#/definitions/Survey"
+    }
+  ]
+}

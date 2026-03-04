@@ -36,6 +36,10 @@ if (import.meta.env.VITE_TEST_MODE === 'true') {
       console.debug('Auth: handleRedirectPromise resolved', { resp })
       const accounts = pca.getAllAccounts()
       console.debug('Auth: current MSAL accounts', { accounts })
+      if (accounts && accounts.length > 0) {
+        console.debug('Auth: setting active account', accounts[0])
+        pca.setActiveAccount(accounts[0])
+      }
     })
     .catch((e) => {
       console.error('Auth: initialization or redirect error', e)
