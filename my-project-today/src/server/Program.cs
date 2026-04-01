@@ -46,6 +46,9 @@ builder.Services.AddDbContext<MeetingRequestsDbContext>(options => options.UseSq
 builder.Services.AddScoped<FileValidationService>();
 builder.Services.AddScoped<FileStorageService>();
 
+// Register registration service
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+
 // Configure file upload limits
 builder.Services.Configure<FormOptions>(options =>
 {

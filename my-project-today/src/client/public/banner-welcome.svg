@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#dff7ff" />
+      <stop offset="50%" stop-color="#c9f0ff" />
+      <stop offset="100%" stop-color="#b8e8ff" />
+    </linearGradient>
+    <linearGradient id="ray1" x1="0%" y1="30%" x2="80%" y2="70%">
+      <stop offset="0%" stop-color="#e9fbff" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#9be8ff" stop-opacity="0.45" />
+    </linearGradient>
+    <linearGradient id="ray2" x1="10%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#aeefff" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#e7fbff" stop-opacity="0.9" />
+    </linearGradient>
+    <linearGradient id="ray3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8fe5ff" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#dff8ff" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="520" fill="url(#bg-grad)" />
+  <polygon points="0,120 520,200 0,400" fill="url(#ray1)" />
+  <polygon points="0,60 820,210 0,380" fill="url(#ray2)" opacity="0.75" />
+  <polygon points="1600,80 820,260 1600,420" fill="url(#ray3)" opacity="0.7" />
+  <polygon points="1600,0 960,220 1600,360" fill="#b3ecff" opacity="0.35" />
+  <polygon points="0,0 740,240 0,300" fill="#d6f6ff" opacity="0.7" />
+</svg>

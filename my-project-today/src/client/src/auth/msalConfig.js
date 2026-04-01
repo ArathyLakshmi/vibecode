@@ -6,6 +6,15 @@ const redirectUri = import.meta.env.VITE_MSAL_REDIRECT_URI || window.location.or
 const rawScopes = import.meta.env.VITE_MSAL_SCOPES || "";
 const scopes = rawScopes ? rawScopes.split(',').map(s => s.trim()).filter(Boolean) : ["openid", "profile", "offline_access"];
 
+// Debug logging - remove after verification
+console.log('🔧 MSAL Configuration Debug:', {
+  clientId,
+  authority,
+  redirectUri,
+  scopes,
+  env: import.meta.env
+});
+
 const msalConfig = {
   auth: {
     clientId,

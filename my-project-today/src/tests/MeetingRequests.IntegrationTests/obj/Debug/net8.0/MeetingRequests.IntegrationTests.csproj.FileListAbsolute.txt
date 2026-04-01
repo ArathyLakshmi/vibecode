@@ -442,3 +442,12 @@ C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\obj\D
 C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\obj\Debug\net8.0\MeetingRequests.IntegrationTests.pdb
 C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\obj\Debug\net8.0\MeetingRequests.IntegrationTests.genruntimeconfig.cache
 C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\obj\Debug\net8.0\ref\MeetingRequests.IntegrationTests.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\appsettings.Development.json
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.Abstractions.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.JsonWebTokens.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.Logging.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.Protocols.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\Microsoft.IdentityModel.Tokens.dll
+C:\Users\arath\my-project-today\src\tests\MeetingRequests.IntegrationTests\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll

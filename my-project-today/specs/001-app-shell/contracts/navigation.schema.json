@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NavigationItem",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "label": { "type": "string" },
+    "href": { "type": "string", "pattern": "^/.*" },
+    "visible": { "type": "boolean" },
+    "roles": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["id","label","href"]
+}

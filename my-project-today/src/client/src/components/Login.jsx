@@ -2,12 +2,66 @@ import React, { useEffect } from 'react'
 import { useMsal, useIsAuthenticated } from '../auth/useAuth'
 import { loginRequest } from '../auth/msalConfig'
 import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  FluentProvider,
+  Card,
+  CardHeader,
+  Button,
+  Text,
+  Title3,
+  makeStyles,
+  tokens
+} from '@fluentui/react-components'
+import { PersonRegular } from '@fluentui/react-icons'
+import { accessibleTheme } from '../theme/accessibleTheme'
+
+const useStyles = makeStyles({
+  container: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.colorNeutralBackground2,
+    padding: tokens.spacingVerticalXXL
+  },
+  card: {
+    width: '100%',
+    maxWidth: '420px',
+    padding: tokens.spacingVerticalXXL,
+    boxShadow: tokens.shadow16
+  },
+  header: {
+    marginBottom: tokens.spacingVerticalXXL,
+    textAlign: 'center'
+  },
+  title: {
+    marginBottom: tokens.spacingVerticalL,
+    lineHeight: '1.3',
+    fontWeight: tokens.fontWeightSemibold
+  },
+  description: {
+    color: tokens.colorNeutralForeground2,
+    lineHeight: '1.6',
+    fontSize: tokens.fontSizeBase300,
+    textAlign: 'center',
+    display: 'block'
+  },
+  buttonContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: tokens.spacingVerticalXL
+  },
+  button: {
+    minWidth: '200px'
+  }
+})
 
 export default function Login() {
   const { instance, accounts } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const navigate = useNavigate()
   const location = useLocation()
+  const styles = useStyles()
 
   const from = (location.state && location.state.from && location.state.from.pathname) || '/'
 
@@ -26,7 +80,6 @@ export default function Login() {
   const handleSignIn = async () => {
     try {
       console.debug('Auth: ensuring MSAL is initialized before loginRedirect')
-      // Ensure MSAL is initialized (idempotent operation)
       await instance.initialize()
       console.debug('Auth: calling instance.loginRedirect', { req: loginRequest })
       await instance.loginRedirect(loginRequest)
@@ -36,14 +89,31 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-semibold mb-4">Sign in to Unified Board Solutions</h2>
-        <p className="mb-4 text-sm text-gray-600">Use your organization account to access board meeting requests and SEC workflows.</p>
-        <div className="flex justify-center">
-          <button type="button" onClick={handleSignIn} className="px-6 py-3 bg-blue-600 text-white rounded">Sign in with Microsoft</button>
-        </div>
+    <FluentProvider theme={accessibleTheme}>
+      <div className={styles.container}>
+        <Card className={styles.card}>
+          <div className={styles.header}>
+            <Title3 className={styles.title}>
+              Sign in to Unified Board Solutions
+            </Title3>
+            <Text as="p" className={styles.description}>
+              Use your organization account to access board meeting requests and SEC workflows.
+            </Text>
+          </div>
+          
+          <div className={styles.buttonContainer}>
+            <Button
+              appearance="primary"
+              size="large"
+              icon={<PersonRegular />}
+              onClick={handleSignIn}
+              className={styles.button}
+            >
+              Sign in with Microsoft
+            </Button>
+          </div>
+        </Card>
       </div>
-    </div>
+    </FluentProvider>
   )
 }

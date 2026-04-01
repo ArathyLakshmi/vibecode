@@ -16,6 +16,124 @@ namespace VibeCode.Server.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
 
+            modelBuilder.Entity("MeetingAgenda", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MeetingRequestId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingRequestId")
+                        .IsUnique();
+
+                    b.ToTable("MeetingAgendas");
+                });
+
+            modelBuilder.Entity("MeetingAgendaItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MeetingRequestId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingRequestId");
+
+                    b.HasIndex("MeetingRequestId", "OrderIndex");
+
+                    b.ToTable("MeetingAgendaItems");
+                });
+
+            modelBuilder.Entity("MeetingRegistration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CancellationDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MeetingRequestId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("RegistrationDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("WaitlistPosition")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingRequestId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserEmail");
+
+                    b.HasIndex("WaitlistPosition");
+
+                    b.HasIndex("MeetingRequestId", "UserEmail")
+                        .IsUnique();
+
+                    b.ToTable("MeetingRegistrations");
+                });
+
             modelBuilder.Entity("MeetingRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -54,11 +172,17 @@ namespace VibeCode.Server.Migrations
                     b.Property<bool>("IsDraft")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("MaxAttendees")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("MeetingDate")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ReferenceNumber")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RegistrationDeadlineMinutes")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RequestType")
                         .IsRequired()
@@ -168,6 +292,76 @@ namespace VibeCode.Server.Migrations
                     b.ToTable("MeetingRequestAttachments");
                 });
 
+            modelBuilder.Entity("VibeCode.Server.Models.User", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("MeetingAgenda", b =>
+                {
+                    b.HasOne("MeetingRequest", "MeetingRequest")
+                        .WithMany()
+                        .HasForeignKey("MeetingRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeetingRequest");
+                });
+
+            modelBuilder.Entity("MeetingAgendaItem", b =>
+                {
+                    b.HasOne("MeetingRequest", "MeetingRequest")
+                        .WithMany()
+                        .HasForeignKey("MeetingRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeetingRequest");
+                });
+
+            modelBuilder.Entity("MeetingRegistration", b =>
+                {
+                    b.HasOne("MeetingRequest", "MeetingRequest")
+                        .WithMany("Registrations")
+                        .HasForeignKey("MeetingRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeetingRequest");
+                });
+
             modelBuilder.Entity("VibeCode.Server.Models.MeetingRequestAttachment", b =>
                 {
                     b.HasOne("MeetingRequest", "MeetingRequest")
@@ -177,6 +371,11 @@ namespace VibeCode.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("MeetingRequest");
+                });
+
+            modelBuilder.Entity("MeetingRequest", b =>
+                {
+                    b.Navigation("Registrations");
                 });
 #pragma warning restore 612, 618
         }
